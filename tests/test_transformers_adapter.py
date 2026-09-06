@@ -29,6 +29,9 @@ def test_discovers_gpt2_hook_points() -> None:
             "transformer.h.0.attn": SimpleNamespace(),
             "transformer.h.0.attn.c_proj": SimpleNamespace(),
             "transformer.h.0.mlp": SimpleNamespace(),
+            "transformer.h.0.mlp.experts": SizedModule(2),
+            "transformer.h.0.mlp.experts.0": SimpleNamespace(),
+            "transformer.h.0.mlp.experts.1": SimpleNamespace(),
             "transformer.h.1": SimpleNamespace(),
             "transformer.h.1.attn": SimpleNamespace(),
             "transformer.h.1.attn.c_proj": SimpleNamespace(),
@@ -38,9 +41,10 @@ def test_discovers_gpt2_hook_points() -> None:
 
     hooks = adapter._discover_hooks()
 
-    assert len(hooks) == 10
+    assert len(hooks) == 12
     assert hooks[0].name == "block.0.residual.pre"
-    assert hooks[-1].name == "block.1.attention.heads"
+    assert hooks[5].name == "block.0.moe.expert.0.output"
+    assert hooks[6].name == "block.0.moe.expert.1.output"
 
 
 def test_replace_first_tensor_preserves_nested_output() -> None:

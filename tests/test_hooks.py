@@ -37,6 +37,36 @@ class Model(nn.Module):
         return self.model(value)
 
 
+class MoEMLP(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.experts = nn.ModuleList([nn.Linear(2, 2), nn.Linear(2, 2)])
+        self.gate = nn.Linear(2, 2)
+
+    def forward(self, value):
+        self.gate(value)
+        return sum((expert(value) for expert in self.experts), torch.zeros_like(value))
+
+
+class MoEBlock(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.mlp = MoEMLP()
+
+    def forward(self, value):
+        return value + self.mlp(value)
+
+
+class MoEModel(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.model = nn.Module()
+        self.model.layers = nn.ModuleList([MoEBlock()])
+
+    def forward(self, value):
+        return self.model.layers[0](value)
+
+
 def test_installed_model_runtime_uses_normalized_hooks(tmp_path: Path) -> None:
     model = Model()
     agent = install_model_runtime(
@@ -110,5 +140,28 @@ def test_installed_runtime_prepares_graph_control_slots(tmp_path: Path) -> None:
         patched = model(torch.ones(1, 2))
         assert baseline.abs().sum().item() > 0
         assert patched.tolist() == [[0.0, 0.0]]
+    finally:
+        close_agents()
+
+
+def test_installed_runtime_traces_visible_moe_experts(tmp_path: Path) -> None:
+    model = MoEModel()
+    agent = install_model_runtime(
+        model,
+        backend="test-moe-hooks",
+        backend_version="1",
+        model_id="test-model",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        client.call("arm", {"hooks": ["block.0.moe.*"], "capture_tensors": False})
+        model(torch.ones(1, 2))
+        hooks = {event["hook"] for event in client.call("events")}
+        assert hooks == {
+            "block.0.moe.router.logits",
+            "block.0.moe.expert.0.output",
+            "block.0.moe.expert.1.output",
+        }
     finally:
         close_agents()

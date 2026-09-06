@@ -25,6 +25,7 @@ parallel topology before that combination is listed as verified.
 | Global tensor activation patch | N/A | Implemented | Implemented | Not yet |
 | Request-scoped activation patch | N/A | Implemented | Implemented | Not yet |
 | Batch safe-point breakpoint | N/A | Implemented | Implemented | Not yet |
+| Visible unfused expert output | Implemented | Implemented | Implemented | Not yet |
 | Single-request scheduler suspension | N/A | Not yet | Not yet | Not yet |
 
 "Implemented" means the adapter and protocol path exist and have dependency-free
@@ -34,3 +35,6 @@ passed a real GPU acceptance run.
 "Experimental" means fixed-address graph control slots and CPU contract tests exist,
 but the path has not passed real CUDA Graph replay acceptance. Enable it explicitly
 with `LDB_CUDA_GRAPH=1`. It supports global scalar `scale`, `add`, and `ablate` only.
+
+Expert-output hooks are available only when experts remain visible as individual
+PyTorch modules. LDB does not claim visibility inside an opaque fused-MoE kernel.

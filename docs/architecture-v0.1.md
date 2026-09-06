@@ -61,6 +61,7 @@ block.17.attention.heads
 block.17.mlp.output
 block.17.residual.post
 block.17.moe.router.logits
+block.17.moe.expert.3.output
 logits
 ```
 

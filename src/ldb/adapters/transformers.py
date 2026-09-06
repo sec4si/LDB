@@ -164,6 +164,27 @@ class TransformersAdapter:
                         phase=HookPhase.PRE,
                     )
                 )
+            experts_path = next(
+                (
+                    path
+                    for path in (
+                        f"{prefix}.mlp.experts",
+                        f"{prefix}.block_sparse_moe.experts",
+                    )
+                    if path in self._module_by_path
+                    and hasattr(self._module_by_path[path], "__len__")
+                ),
+                None,
+            )
+            if experts_path is not None:
+                for expert in range(len(self._module_by_path[experts_path])):
+                    hooks.append(
+                        HookPoint(
+                            name=f"block.{index}.moe.expert.{expert}.output",
+                            module_path=f"{experts_path}.{expert}",
+                            phase=HookPhase.POST,
+                        )
+                    )
         return tuple(hooks)
 
     def hook_points(self) -> Sequence[HookPoint]:

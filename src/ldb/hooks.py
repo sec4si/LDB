@@ -135,6 +135,7 @@ def install_model_runtime(
             "moe.router.logits",
             ("mlp.gate", "block_sparse_moe.gate"),
         )
+        _install_expert_hooks(agent, module_by_path, prefix, index)
     setattr(model, marker, agent)
     return agent
 
@@ -257,6 +258,29 @@ def _install_first_pre_hook(
             _prepare_graph_hook(agent, hook, module)
             agent.add_handle(module.register_forward_pre_hook(_make_pre_hook(agent, hook)))
             return
+
+
+def _install_expert_hooks(
+    agent: AgentRuntime,
+    module_by_path: Mapping[str, Any],
+    prefix: str,
+    index: int,
+) -> None:
+    experts_path = next(
+        (
+            path
+            for path in (f"{prefix}.mlp.experts", f"{prefix}.block_sparse_moe.experts")
+            if path in module_by_path and hasattr(module_by_path[path], "__len__")
+        ),
+        None,
+    )
+    if experts_path is None:
+        return
+    for expert in range(len(module_by_path[experts_path])):
+        module = module_by_path[f"{experts_path}.{expert}"]
+        hook = f"block.{index}.moe.expert.{expert}.output"
+        _prepare_graph_hook(agent, hook, module)
+        agent.add_handle(module.register_forward_hook(_make_post_hook(agent, hook)))
 
 
 def _floating_parameter(module: Any) -> Any:
