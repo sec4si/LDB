@@ -11,16 +11,19 @@ target:
   - case_id: failure-1
     prompt: The Eiffel Tower is in
     target_token_id: 16046
+    category: locality
 
 related:
   - case_id: related-1
     prompt: Paris is home to the Eiffel Tower, located in
     target_token_id: 220
+    category: generalization
 
 regression:
   - case_id: control-1
     prompt: Water freezes at
     target_token_id: 362
+    category: benchmark
 ```
 
 The first search implementation evaluates one activation scale at one normalized
@@ -66,6 +69,9 @@ ldb patch verify candidate-patch.yaml \
 
 Verification rejects model revision and tokenizer hash mismatches. A failed check
 exits non-zero and never writes a verified patch.
+Every case may declare a category such as `locality`, `generalization`,
+`compositionality`, `multi-hop`, or `benchmark`. Verification reports case count,
+success rate, mean delta, and worst delta independently for every category.
 
 ## Heterogeneous combination search
 

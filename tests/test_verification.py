@@ -74,9 +74,24 @@ def test_verify_patch_checks_target_and_regression_thresholds(tmp_path: Path) ->
         evidence=EvidenceLevel.CAUSALLY_TESTED,
     )
     suite = EvaluationSuite(
-        target=(BehaviorCase(case_id="failure", prompt="target", target_token_id=1),),
-        related=(BehaviorCase(case_id="related", prompt="target", target_token_id=1),),
-        regression=(BehaviorCase(case_id="control", prompt="control", target_token_id=2),),
+        target=(
+            BehaviorCase(
+                case_id="failure", prompt="target", target_token_id=1, category="locality"
+            ),
+        ),
+        related=(
+            BehaviorCase(
+                case_id="related",
+                prompt="target",
+                target_token_id=1,
+                category="generalization",
+            ),
+        ),
+        regression=(
+            BehaviorCase(
+                case_id="control", prompt="control", target_token_id=2, category="benchmark"
+            ),
+        ),
     )
 
     report = verify_patch(
@@ -92,6 +107,9 @@ def test_verify_patch_checks_target_and_regression_thresholds(tmp_path: Path) ->
     assert report.target_success == 1.0
     assert report.related_generalization == 1.0
     assert report.unrelated_regression == -0.0625
+    assert report.categories["locality"].success == 1.0
+    assert report.categories["generalization"].case_count == 1
+    assert report.categories["benchmark"].worst_delta == -0.0625
 
 
 def test_verify_patch_rejects_tokenizer_mismatch(tmp_path: Path) -> None:

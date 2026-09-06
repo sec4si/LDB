@@ -765,6 +765,16 @@ def verify_neural_patch(
         f"target={report.target_success:.1%}{related} "
         f"worst_regression={report.unrelated_regression:+.6g}"
     )
+    table = Table("Category", "Cases", "Success", "Mean delta", "Worst delta")
+    for category, summary in report.categories.items():
+        table.add_row(
+            category,
+            str(summary.case_count),
+            f"{summary.success:.1%}",
+            f"{summary.mean_delta:+.6g}",
+            f"{summary.worst_delta:+.6g}",
+        )
+    console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")
     if report.passed and verified_patch_output is not None:

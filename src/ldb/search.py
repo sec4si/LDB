@@ -31,6 +31,7 @@ class BehaviorCase(FrozenModel):
     case_id: str
     prompt: str
     target_token_id: int = Field(ge=0)
+    category: str = "unspecified"
     weight: float = Field(default=1.0, gt=0.0)
 
 
@@ -51,6 +52,7 @@ class EvaluationSuite(FrozenModel):
 class CaseScore(FrozenModel):
     case_id: str
     group: Literal["target", "related", "regression"]
+    category: str = "unspecified"
     baseline_log_probability: float
     patched_log_probability: float
     delta: float
@@ -184,6 +186,7 @@ def search_scale_patches(
                     CaseScore(
                         case_id=case.case_id,
                         group=group,
+                        category=case.category,
                         baseline_log_probability=baselines[case.case_id],
                         patched_log_probability=(
                             patched := runtime.next_token_log_probability(
@@ -300,6 +303,7 @@ def search_candidate_combinations(
         CaseScore(
             case_id=case.case_id,
             group=group,
+            category=case.category,
             baseline_log_probability=baselines[case.case_id],
             patched_log_probability=baselines[case.case_id],
             delta=0.0,
@@ -415,6 +419,7 @@ def _score_cases(
         CaseScore(
             case_id=case.case_id,
             group=group,
+            category=case.category,
             baseline_log_probability=baselines[case.case_id],
             patched_log_probability=(
                 patched := runtime.next_token_log_probability(case.prompt, case.target_token_id)

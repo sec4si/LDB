@@ -14,6 +14,13 @@ from ldb.offline import install_interventions, remove_interventions
 from ldb.search import BehaviorCase, CaseScore, EvaluationSuite
 
 
+class CategorySummary(FrozenModel):
+    case_count: int = Field(gt=0)
+    success: float = Field(ge=0.0, le=1.0)
+    mean_delta: float
+    worst_delta: float
+
+
 class VerificationReport(FrozenModel):
     schema_version: Literal["ldb.verification/v1alpha1"] = "ldb.verification/v1alpha1"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -28,6 +35,7 @@ class VerificationReport(FrozenModel):
     unrelated_regression: float
     passed: bool
     cases: tuple[CaseScore, ...]
+    categories: dict[str, CategorySummary]
 
 
 def verify_patch(
@@ -76,6 +84,7 @@ def verify_patch(
             CaseScore(
                 case_id=case.case_id,
                 group=group,
+                category=case.category,
                 baseline_log_probability=baselines[case.case_id],
                 patched_log_probability=(
                     patched := runtime.next_token_log_probability(case.prompt, case.target_token_id)
@@ -105,6 +114,26 @@ def verify_patch(
         and related_success in {None, 1.0}
         and worst_regression >= -regression_max_drop
     )
+    categories: dict[str, CategorySummary] = {}
+    for category in sorted({score.category for score in case_scores}):
+        scores = [score for score in case_scores if score.category == category]
+        successful = sum(
+            score.delta
+            >= (
+                target_min_gain
+                if score.group == "target"
+                else related_min_gain
+                if score.group == "related"
+                else -regression_max_drop
+            )
+            for score in scores
+        )
+        categories[category] = CategorySummary(
+            case_count=len(scores),
+            success=successful / len(scores),
+            mean_delta=sum(score.delta for score in scores) / len(scores),
+            worst_delta=min(score.delta for score in scores),
+        )
     return VerificationReport(
         patch_id=patch.patch_id,
         model_id=runtime.model_id,
@@ -117,4 +146,5 @@ def verify_patch(
         unrelated_regression=worst_regression,
         passed=passed,
         cases=case_scores,
+        categories=categories,
     )
