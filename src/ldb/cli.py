@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import fnmatch
 import shlex
-from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any
@@ -457,10 +456,17 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
                 params["feature"] = intervention.feature
             client.call("patch.set", params)
             installed.append(patch_id)
-    except Exception:
+    except Exception as exc:
+        rollback_errors: list[str] = []
         for patch_id in reversed(installed):
-            with suppress(Exception):
+            try:
                 client.call("patch.remove", {"patch_id": patch_id})
+            except Exception as rollback_exc:
+                rollback_errors.append(f"{patch_id}: {rollback_exc}")
+        if rollback_errors:
+            raise RuntimeError(
+                f"Patch load failed: {exc}; rollback failed: {'; '.join(rollback_errors)}"
+            ) from exc
         raise
     console.print(f"Installed {len(installed)} intervention(s) from [bold]{path}[/bold]")
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import socket
 import uuid
-from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -74,12 +73,15 @@ class AgentGroupClient:
             except Exception as exc:
                 errors.append(f"{client.socket_path}: {exc}")
         if errors:
-            self._rollback(method, params or {}, successful)
-            raise RuntimeError("Agent group command failed: " + "; ".join(errors))
+            rollback_errors = self._rollback(method, params or {}, successful)
+            detail = "Agent group command failed: " + "; ".join(errors)
+            if rollback_errors:
+                detail += "; rollback failed: " + "; ".join(rollback_errors)
+            raise RuntimeError(detail)
         return results
 
     @staticmethod
-    def _rollback(method: str, params: dict[str, Any], clients: list[AgentClient]) -> None:
+    def _rollback(method: str, params: dict[str, Any], clients: list[AgentClient]) -> list[str]:
         if method == "patch.set":
             rollback = ("patch.remove", {"patch_id": params.get("patch_id")})
         elif method == "break.set":
@@ -87,10 +89,14 @@ class AgentGroupClient:
         elif method == "arm":
             rollback = ("disarm", {})
         else:
-            return
+            return []
+        errors: list[str] = []
         for client in clients:
-            with suppress(Exception):
+            try:
                 client.call(*rollback)
+            except Exception as exc:
+                errors.append(f"{client.socket_path}: {exc}")
+        return errors
 
 
 def _read_line(connection: socket.socket, *, limit: int = 16 * 1024 * 1024) -> bytes:
