@@ -262,3 +262,26 @@ class TransformersAdapter:
                     f"Target token ID {target_token_id} is outside the model vocabulary"
                 )
             return float(torch.log_softmax(logits.float(), dim=-1)[0, target_token_id].item())
+
+    def continuation_log_probability(self, prompt: str, continuation: str) -> float:
+        import torch
+
+        prompt_ids = list(self.tokenize(prompt))
+        continuation_ids = list(self.tokenizer(continuation, add_special_tokens=False)["input_ids"])
+        if not prompt_ids:
+            raise ValueError("Prompt must contain at least one token")
+        if not continuation_ids:
+            raise ValueError("Continuation must contain at least one token")
+        input_ids = torch.tensor(
+            [prompt_ids + continuation_ids], device=self.device, dtype=torch.long
+        )
+        with torch.inference_mode():
+            logits = self.model(input_ids=input_ids).logits[0]
+            positions = torch.arange(
+                len(prompt_ids) - 1,
+                len(prompt_ids) + len(continuation_ids) - 1,
+                device=logits.device,
+            )
+            targets = torch.tensor(continuation_ids, device=logits.device, dtype=torch.long)
+            values = torch.log_softmax(logits[positions].float(), dim=-1)
+            return float(values.gather(1, targets[:, None]).mean().item())

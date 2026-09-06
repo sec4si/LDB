@@ -38,6 +38,8 @@ class CausalRuntime(Protocol):
 
     def next_token_log_probability(self, prompt: str, target_token_id: int) -> float: ...
 
+    def continuation_log_probability(self, prompt: str, continuation: str) -> float: ...
+
 
 class CausalTrial(FrozenModel):
     hook: str

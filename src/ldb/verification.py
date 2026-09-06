@@ -11,7 +11,7 @@ from pydantic import Field
 from ldb.causal import CausalRuntime
 from ldb.models import FrozenModel, NeuralPatch
 from ldb.offline import install_interventions, remove_interventions
-from ldb.search import BehaviorCase, CaseScore, EvaluationSuite
+from ldb.search import BehaviorCase, CaseScore, EvaluationSuite, score_case
 
 
 class CategorySummary(FrozenModel):
@@ -69,9 +69,7 @@ def verify_patch(
         ("regression", suite.regression),
     )
     baselines = {
-        case.case_id: runtime.next_token_log_probability(case.prompt, case.target_token_id)
-        for _, cases in grouped_cases
-        for case in cases
+        case.case_id: score_case(runtime, case) for _, cases in grouped_cases for case in cases
     }
 
     handles = []
@@ -86,9 +84,7 @@ def verify_patch(
                 group=group,
                 category=case.category,
                 baseline_log_probability=baselines[case.case_id],
-                patched_log_probability=(
-                    patched := runtime.next_token_log_probability(case.prompt, case.target_token_id)
-                ),
+                patched_log_probability=(patched := score_case(runtime, case)),
                 delta=patched - baselines[case.case_id],
             )
             for group, cases in grouped_cases

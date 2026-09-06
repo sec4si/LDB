@@ -61,6 +61,10 @@ class SearchRuntime:
             return -((value - 0.5) ** 2)
         return -((value - 1.0) ** 2)
 
+    def continuation_log_probability(self, prompt: str, continuation: str) -> float:
+        assert continuation == " answer"
+        return self.next_token_log_probability(prompt, 1)
+
 
 def test_search_balances_target_gain_regression_and_complexity() -> None:
     suite = EvaluationSuite(
@@ -90,6 +94,18 @@ def test_suite_rejects_duplicate_case_ids() -> None:
     duplicate = BehaviorCase(case_id="same", prompt="prompt", target_token_id=1)
     with pytest.raises(ValidationError, match="Case IDs must be unique"):
         EvaluationSuite(target=(duplicate,), regression=(duplicate,))
+
+
+def test_case_accepts_exactly_one_token_or_text_target() -> None:
+    text_case = BehaviorCase(case_id="text", prompt="target", target_text=" answer")
+    suite = EvaluationSuite(target=(text_case,))
+    report = search_scale_patches(SearchRuntime(), suite, hook_globs=["block.*"], scales=[0.75])
+    assert report.trials[0].target_gain > 0
+
+    with pytest.raises(ValidationError, match="exactly one"):
+        BehaviorCase(case_id="missing", prompt="prompt")
+    with pytest.raises(ValidationError, match="exactly one"):
+        BehaviorCase(case_id="both", prompt="prompt", target_token_id=1, target_text=" answer")
 
 
 def test_search_always_compares_with_noop() -> None:

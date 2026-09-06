@@ -72,6 +72,10 @@ exits non-zero and never writes a verified patch.
 Every case may declare a category such as `locality`, `generalization`,
 `compositionality`, `multi-hop`, or `benchmark`. Verification reports case count,
 success rate, mean delta, and worst delta independently for every category.
+Cases specify exactly one `target_token_id` or `target_text`. Text continuations may
+contain multiple tokens and are scored by mean token log-probability, so longer
+answers do not receive a larger loss merely because of their length. Include any
+required leading whitespace in `target_text`.
 
 ## Heterogeneous combination search
 

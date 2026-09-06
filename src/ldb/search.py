@@ -30,9 +30,18 @@ from ldb.offline import install_interventions, remove_interventions
 class BehaviorCase(FrozenModel):
     case_id: str
     prompt: str
-    target_token_id: int = Field(ge=0)
+    target_token_id: int | None = Field(default=None, ge=0)
+    target_text: str | None = None
     category: str = "unspecified"
     weight: float = Field(default=1.0, gt=0.0)
+
+    @model_validator(mode="after")
+    def exactly_one_target(self) -> BehaviorCase:
+        if (self.target_token_id is None) == (self.target_text is None):
+            raise ValueError("A case requires exactly one of target_token_id or target_text")
+        if self.target_text == "":
+            raise ValueError("target_text must not be empty")
+        return self
 
 
 class EvaluationSuite(FrozenModel):
@@ -169,9 +178,7 @@ def search_scale_patches(
         ("regression", suite.regression),
     )
     baselines = {
-        case.case_id: runtime.next_token_log_probability(case.prompt, case.target_token_id)
-        for _, cases in grouped_cases
-        for case in cases
+        case.case_id: score_case(runtime, case) for _, cases in grouped_cases for case in cases
     }
     trials: list[SearchTrial] = []
     for hook in hooks:
@@ -188,11 +195,7 @@ def search_scale_patches(
                         group=group,
                         category=case.category,
                         baseline_log_probability=baselines[case.case_id],
-                        patched_log_probability=(
-                            patched := runtime.next_token_log_probability(
-                                case.prompt, case.target_token_id
-                            )
-                        ),
+                        patched_log_probability=(patched := score_case(runtime, case)),
                         delta=patched - baselines[case.case_id],
                     )
                     for group, cases in grouped_cases
@@ -295,9 +298,7 @@ def search_candidate_combinations(
 
     grouped_cases = _grouped_cases(suite)
     baselines = {
-        case.case_id: runtime.next_token_log_probability(case.prompt, case.target_token_id)
-        for _, cases in grouped_cases
-        for case in cases
+        case.case_id: score_case(runtime, case) for _, cases in grouped_cases for case in cases
     }
     baseline_scores = tuple(
         CaseScore(
@@ -421,9 +422,7 @@ def _score_cases(
             group=group,
             category=case.category,
             baseline_log_probability=baselines[case.case_id],
-            patched_log_probability=(
-                patched := runtime.next_token_log_probability(case.prompt, case.target_token_id)
-            ),
+            patched_log_probability=(patched := score_case(runtime, case)),
             delta=patched - baselines[case.case_id],
         )
         for group, cases in grouped_cases
@@ -447,3 +446,10 @@ def _weighted_mean(
         for score in values
     )
     return numerator / sum(weights.values())
+
+
+def score_case(runtime: CausalRuntime, case: BehaviorCase) -> float:
+    if case.target_token_id is not None:
+        return runtime.next_token_log_probability(case.prompt, case.target_token_id)
+    assert case.target_text is not None
+    return runtime.continuation_log_probability(case.prompt, case.target_text)
