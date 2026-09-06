@@ -26,6 +26,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
   expert-routing interventions on eager execution paths;
 - pre-projection attention-head inspection and exact head ablation;
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
+- token-scoped causal ablation ranked by behavioral effect;
 - clean/corrupt activation patching for causal next-token localization;
 - directed causal propagation graphs from downstream activation recovery;
 - canonical SAE dictionary loading and top-feature inspection;
@@ -65,6 +66,12 @@ ldb causal sshleifer/tiny-gpt2 \
   --target-token-id 16046 \
   --token -1 \
   --output causal-report.json
+
+ldb ablate sshleifer/tiny-gpt2 \
+  --prompt "The Eiffel Tower is in" \
+  --target-token-id 16046 \
+  --token -1 \
+  --output ablation-report.json
 
 ldb search sshleifer/tiny-gpt2 \
   --suite examples/suites/next-token.yaml \
@@ -149,3 +156,5 @@ See [GPU acceptance](docs/gpu-validation.md) for the real-server smoke harness a
 the evidence required before a runtime combination is marked verified.
 See [causal propagation graphs](docs/causal-graph.md) for the directed-edge
 experiment and its evidence boundary.
+See [causal ablation](docs/causal-ablation.md) for token-level removal experiments
+and effect interpretation.

@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "AblationTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "ablated_log_probability": {
+          "title": "Ablated Log Probability",
+          "type": "number"
+        },
+        "effect": {
+          "title": "Effect",
+          "type": "number"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hook",
+        "ablated_log_probability",
+        "effect"
+      ],
+      "title": "AblationTrial",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "baseline_log_probability": {
+      "title": "Baseline Log Probability",
+      "type": "number"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.ablation/v1alpha1",
+      "default": "ldb.ablation/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_token_id": {
+      "minimum": 0,
+      "title": "Target Token Id",
+      "type": "integer"
+    },
+    "token_index": {
+      "default": -1,
+      "title": "Token Index",
+      "type": "integer"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
+    "trials": {
+      "items": {
+        "$ref": "#/$defs/AblationTrial"
+      },
+      "title": "Trials",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "tokenizer_hash",
+    "prompt",
+    "target_token_id",
+    "baseline_log_probability",
+    "trials"
+  ],
+  "title": "AblationReport",
+  "type": "object"
+}

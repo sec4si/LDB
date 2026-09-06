@@ -14,7 +14,7 @@ from rich.table import Table
 from safetensors.torch import load_file
 
 from ldb import __version__
-from ldb.causal import causal_propagation_graph, causal_trace
+from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
 from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
@@ -254,6 +254,48 @@ def causal(
         f"Clean log P: {report.clean_log_probability:.6g}  "
         f"Corrupt log P: {report.corrupt_log_probability:.6g}"
     )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("ablate")
+def ablate(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    prompt: Annotated[str, typer.Option("--prompt")],
+    target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
+    token_index: Annotated[int, typer.Option("--token", help="Activation token index")] = -1,
+    hook: Annotated[
+        list[str] | None,
+        typer.Option("--hook", help="Glob selecting ablation candidates"),
+    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Rank hook tokens by causal next-token effect under ablation."""
+
+    from ldb.adapters.transformers import TransformersAdapter
+
+    adapter = TransformersAdapter(model, revision=revision, device=device)
+    report = causal_ablation(
+        adapter,
+        prompt=prompt,
+        target_token_id=target_token_id,
+        token_index=token_index,
+        hook_globs=hook or ["block.*.residual.post"],
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    table = Table("Hook", "Ablated log P", "Effect")
+    for trial in report.trials:
+        table.add_row(
+            trial.hook,
+            f"{trial.ablated_log_probability:.6g}",
+            f"{trial.effect:+.6g}",
+        )
+    console.print(f"Baseline log P: {report.baseline_log_probability:.6g}")
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")

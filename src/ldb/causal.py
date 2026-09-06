@@ -5,11 +5,12 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import Field
 
-from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, HookPoint
+from ldb.interventions import apply_tensor_operation
+from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, HookPoint, InterventionKind
 from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
 
 
@@ -89,6 +90,85 @@ class CausalGraphReport(FrozenModel):
     corrupt_log_probability: float
     nodes: tuple[CausalTrial, ...]
     edges: tuple[CausalEdge, ...]
+
+
+class AblationTrial(FrozenModel):
+    hook: str
+    ablated_log_probability: float
+    effect: float
+
+
+class AblationReport(FrozenModel):
+    schema_version: Literal["ldb.ablation/v1alpha1"] = "ldb.ablation/v1alpha1"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    model_id: str
+    model_revision: str | None = None
+    backend: str
+    backend_version: str
+    tokenizer_hash: str
+    hook_schema_version: str = HOOK_SCHEMA_VERSION
+    prompt: str
+    target_token_id: int = Field(ge=0)
+    token_index: int = -1
+    baseline_log_probability: float
+    trials: tuple[AblationTrial, ...]
+
+
+def causal_ablation(
+    runtime: CausalRuntime,
+    *,
+    prompt: str,
+    target_token_id: int,
+    token_index: int = -1,
+    hook_globs: Sequence[str] = ("block.*.residual.post",),
+) -> AblationReport:
+    """Ablate one activation token at each selected hook and measure target impact."""
+
+    hooks = tuple(
+        hook
+        for hook in runtime.hook_points()
+        if any(fnmatch.fnmatchcase(hook.name, pattern) for pattern in hook_globs)
+    )
+    if not hooks:
+        raise ValueError("No hook points matched the requested patterns")
+
+    baseline = runtime.next_token_log_probability(prompt, target_token_id)
+    trials: list[AblationTrial] = []
+    for hook in hooks:
+
+        def ablate(_: HookPoint, tensor: Any) -> Any:
+            return apply_tensor_operation(
+                tensor,
+                InterventionKind.ABLATE,
+                token=token_index,
+            )
+
+        handle = runtime.install_intervention(hook, ablate)
+        try:
+            score = runtime.next_token_log_probability(prompt, target_token_id)
+        finally:
+            handle.remove()
+        trials.append(
+            AblationTrial(
+                hook=hook.name,
+                ablated_log_probability=score,
+                effect=score - baseline,
+            )
+        )
+
+    trials.sort(key=lambda trial: abs(trial.effect), reverse=True)
+    return AblationReport(
+        model_id=runtime.model_id,
+        model_revision=runtime.revision,
+        backend=runtime.backend,
+        backend_version=runtime.backend_version,
+        tokenizer_hash=runtime.tokenizer_hash,
+        prompt=prompt,
+        target_token_id=target_token_id,
+        token_index=token_index,
+        baseline_log_probability=baseline,
+        trials=tuple(trials),
+    )
 
 
 def causal_trace(

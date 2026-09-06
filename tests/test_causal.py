@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from ldb.causal import causal_propagation_graph, causal_trace
+from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.models import HookPhase, HookPoint
 
 torch = pytest.importorskip("torch")
@@ -102,6 +102,19 @@ class VariableLengthRuntime(FakeRuntime):
         return float(value[0, -1, 0])
 
 
+class AblationRuntime(FakeRuntime):
+    def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
+        assert prompt == "prompt"
+        assert target_token_id == 7
+        score = 0.0
+        for index, hook in enumerate(self.hooks):
+            value = torch.tensor([[[0.0], [float(index + 1)]]])
+            for callback in self.interventions.get(hook.name, []):
+                value = callback(hook, value)
+            score += float(value[0, -1, 0])
+        return score
+
+
 def test_causal_trace_ranks_clean_activation_recovery() -> None:
     report = causal_trace(
         FakeRuntime(),
@@ -150,3 +163,23 @@ def test_causal_trace_patches_one_token_across_different_sequence_lengths() -> N
     assert report.corrupt_log_probability == 0.0
     assert report.trials[0].patched_log_probability == 1.0
     assert report.trials[0].recovery == 1.0
+
+
+def test_causal_ablation_ranks_selected_token_effects() -> None:
+    runtime = AblationRuntime()
+    report = causal_ablation(
+        runtime,
+        prompt="prompt",
+        target_token_id=7,
+        token_index=-1,
+    )
+
+    assert report.baseline_log_probability == 3.0
+    assert report.token_index == -1
+    assert [trial.hook for trial in report.trials] == [
+        "block.1.residual.post",
+        "block.0.residual.post",
+    ]
+    assert [trial.effect for trial in report.trials] == [-2.0, -1.0]
+    assert not runtime.interventions["block.0.residual.post"]
+    assert not runtime.interventions["block.1.residual.post"]
