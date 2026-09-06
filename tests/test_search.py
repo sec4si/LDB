@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
-from ldb.models import HookPhase, HookPoint
-from ldb.search import BehaviorCase, EvaluationSuite, patch_from_search, search_scale_patches
+from ldb.models import HookPhase, HookPoint, Intervention, InterventionKind
+from ldb.search import (
+    BehaviorCase,
+    CandidateSet,
+    EvaluationSuite,
+    PatchCandidate,
+    patch_from_combination_search,
+    patch_from_search,
+    search_candidate_combinations,
+    search_scale_patches,
+)
 
 
 class Handle:
@@ -29,7 +39,7 @@ class SearchRuntime:
         self.hook = HookPoint(
             name="block.0.residual.post", module_path="block", phase=HookPhase.POST
         )
-        self.intervention: Callable[[HookPoint, Any], Any] | None = None
+        self.interventions: list[Callable[[HookPoint, Any], Any]] = []
 
     def hook_points(self) -> tuple[HookPoint, ...]:
         return (self.hook,)
@@ -40,13 +50,13 @@ class SearchRuntime:
     def install_intervention(
         self, hook: HookPoint, callback: Callable[[HookPoint, Any], Any]
     ) -> Handle:
-        self.intervention = callback
-        return Handle(lambda: setattr(self, "intervention", None))
+        self.interventions.append(callback)
+        return Handle(lambda: self.interventions.remove(callback))
 
     def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
         value = 1.0
-        if self.intervention is not None:
-            value = float(self.intervention(self.hook, value))
+        for intervention in self.interventions:
+            value = float(intervention(self.hook, value))
         if prompt == "target":
             return -((value - 0.5) ** 2)
         return -((value - 1.0) ** 2)
@@ -90,3 +100,62 @@ def test_search_always_compares_with_noop() -> None:
     assert report.trials[0].scale == 1.0
     with pytest.raises(ValueError, match="no-op baseline"):
         patch_from_search(report)
+
+
+def test_combination_search_finds_multi_intervention_patch(tmp_path: Path) -> None:
+    suite = EvaluationSuite(
+        target=(BehaviorCase(case_id="failure", prompt="target", target_token_id=1),)
+    )
+    candidates = CandidateSet(
+        candidates=tuple(
+            PatchCandidate(
+                candidate_id=f"scale-{index}",
+                intervention=Intervention(
+                    hook="block.0.residual.post",
+                    operation=InterventionKind.SCALE,
+                    value=0.75,
+                ),
+                complexity=0.0,
+            )
+            for index in range(2)
+        )
+    )
+    report = search_candidate_combinations(
+        SearchRuntime(),
+        suite,
+        candidates,
+        resource_directory=tmp_path,
+        max_interventions=2,
+        regression_weight=0.0,
+        complexity_weight=0.0,
+    )
+    assert report.trials[0].candidate_ids == ("scale-0", "scale-1")
+    assert len(patch_from_combination_search(report).interventions) == 2
+
+
+def test_combination_search_enforces_trial_limit(tmp_path: Path) -> None:
+    suite = EvaluationSuite(
+        target=(BehaviorCase(case_id="failure", prompt="target", target_token_id=1),)
+    )
+    candidates = CandidateSet(
+        candidates=tuple(
+            PatchCandidate(
+                candidate_id=f"scale-{index}",
+                intervention=Intervention(
+                    hook="block.0.residual.post",
+                    operation=InterventionKind.SCALE,
+                    value=0.75,
+                ),
+            )
+            for index in range(4)
+        )
+    )
+    with pytest.raises(ValueError, match="limit is 2"):
+        search_candidate_combinations(
+            SearchRuntime(),
+            suite,
+            candidates,
+            resource_directory=tmp_path,
+            max_interventions=2,
+            max_trials=2,
+        )

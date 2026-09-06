@@ -20,7 +20,14 @@ from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
 from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features
-from ldb.search import load_suite, patch_from_search, search_scale_patches
+from ldb.search import (
+    load_candidate_set,
+    load_suite,
+    patch_from_combination_search,
+    patch_from_search,
+    search_candidate_combinations,
+    search_scale_patches,
+)
 from ldb.trace import RunBundleRecorder, load_events, load_manifest
 from ldb.verification import verify_patch
 
@@ -293,6 +300,69 @@ def search_patches(
             trial.hook,
             f"{trial.scale:.6g}",
             f"{trial.target_gain:+.6g}",
+            f"{trial.regression_loss:.6g}",
+            f"{trial.objective:+.6g}",
+        )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+    if patch_output is not None:
+        console.print(f"Neural Patch: [bold]{patch_output}[/bold]")
+
+
+@app.command("search-combinations")
+def search_combinations(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    suite: Annotated[Path, typer.Option("--suite", exists=True, dir_okay=False)],
+    candidates: Annotated[Path, typer.Option("--candidates", exists=True, dir_okay=False)],
+    max_interventions: Annotated[int, typer.Option("--max-interventions", min=1)] = 2,
+    max_trials: Annotated[int, typer.Option("--max-trials", min=1)] = 10_000,
+    regression_weight: Annotated[float, typer.Option("--regression-weight", min=0.0)] = 1.0,
+    complexity_weight: Annotated[float, typer.Option("--complexity-weight", min=0.0)] = 0.01,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    patch_output: Annotated[
+        Path | None, typer.Option("--patch-output", help="Write the best Neural Patch")
+    ] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Search bounded combinations of heterogeneous interventions."""
+
+    from ldb.adapters.transformers import TransformersAdapter
+
+    adapter = TransformersAdapter(model, revision=revision, device=device)
+    report = search_candidate_combinations(
+        adapter,
+        load_suite(suite),
+        load_candidate_set(candidates),
+        resource_directory=candidates.parent,
+        max_interventions=max_interventions,
+        max_trials=max_trials,
+        regression_weight=regression_weight,
+        complexity_weight=complexity_weight,
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if patch_output is not None:
+        patch = patch_from_combination_search(report)
+        has_relative_resource = any(
+            resource is not None and not Path(resource).is_absolute()
+            for intervention in patch.interventions
+            for resource in (intervention.tensor, intervention.dictionary)
+        )
+        if has_relative_resource and patch_output.parent.resolve() != candidates.parent.resolve():
+            raise ValueError(
+                "A patch with relative resources must be written beside its candidate file"
+            )
+        write_patch(patch_output, patch)
+
+    table = Table("Candidates", "Target gain", "Related gain", "Regression", "Objective")
+    for trial in report.trials[:20]:
+        table.add_row(
+            ", ".join(trial.candidate_ids) or "<no-op>",
+            f"{trial.target_gain:+.6g}",
+            f"{trial.related_gain:+.6g}" if trial.related_gain is not None else "-",
             f"{trial.regression_loss:.6g}",
             f"{trial.objective:+.6g}",
         )

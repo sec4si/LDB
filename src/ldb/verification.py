@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import fnmatch
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 
 from ldb.causal import CausalRuntime
-from ldb.interventions import apply_tensor_operation, load_intervention_tensor
-from ldb.models import FrozenModel, HookPoint, NeuralPatch
-from ldb.runtime import ProbeHandle
-from ldb.sae import SAEDictionary
+from ldb.models import FrozenModel, NeuralPatch
+from ldb.offline import install_interventions, remove_interventions
 from ldb.search import BehaviorCase, CaseScore, EvaluationSuite
 
 
@@ -69,51 +66,11 @@ def verify_patch(
         for case in cases
     }
 
-    handles: list[ProbeHandle] = []
+    handles = []
     try:
-        for intervention in patch.interventions:
-            matches = tuple(
-                hook
-                for hook in runtime.hook_points()
-                if fnmatch.fnmatchcase(hook.name, intervention.hook)
-            )
-            if not matches:
-                raise ValueError(f"Patch hook did not match this runtime: {intervention.hook}")
-            replacement = None
-            if intervention.dictionary is not None:
-                dictionary_path = Path(intervention.dictionary)
-                if not dictionary_path.is_absolute():
-                    dictionary_path = patch_directory / dictionary_path
-                assert intervention.feature is not None
-                replacement = SAEDictionary(dictionary_path).feature(intervention.feature)
-            elif intervention.tensor is not None:
-                tensor_path = Path(intervention.tensor)
-                if not tensor_path.is_absolute():
-                    tensor_path = patch_directory / tensor_path
-                replacement = load_intervention_tensor(tensor_path)
-
-            def apply(
-                _: HookPoint,
-                tensor: Any,
-                operation: Any = intervention.operation,
-                value: float | None = intervention.value,
-                loaded: Any = replacement,
-                expert: int | None = intervention.expert,
-                head: int | None = intervention.head,
-                num_heads: int | None = intervention.num_heads,
-            ) -> Any:
-                return apply_tensor_operation(
-                    tensor,
-                    operation,
-                    value=value,
-                    replacement=loaded,
-                    expert=expert,
-                    head=head,
-                    num_heads=num_heads,
-                    feature=loaded,
-                )
-
-            handles.extend(runtime.install_intervention(hook, apply) for hook in matches)
+        handles = install_interventions(
+            runtime, patch.interventions, resource_directory=patch_directory
+        )
 
         case_scores = tuple(
             CaseScore(
@@ -129,8 +86,7 @@ def verify_patch(
             for case in cases
         )
     finally:
-        for handle in reversed(handles):
-            handle.remove()
+        remove_interventions(handles)
 
     target_scores = [score for score in case_scores if score.group == "target"]
     related_scores = [score for score in case_scores if score.group == "related"]

@@ -66,3 +66,26 @@ ldb patch verify candidate-patch.yaml \
 
 Verification rejects model revision and tokenizer hash mismatches. A failed check
 exits non-zero and never writes a verified patch.
+
+## Heterogeneous combination search
+
+Define bounded candidates with explicit complexity costs. Candidates may use any
+offline-supported Neural Patch operation, including head ablation and SAE feature
+scaling.
+
+```console
+ldb search-combinations <model> \
+  --suite suite.yaml \
+  --candidates candidates.yaml \
+  --max-interventions 2 \
+  --max-trials 10000 \
+  --output combination-search.json \
+  --patch-output candidate-patch.yaml
+```
+
+LDB evaluates the exact combination set through `max-interventions`, including an
+explicit no-op. It refuses a search whose combinatorial count exceeds `max-trials`.
+Combination complexity is the sum of the candidates' declared costs and uses the
+same target-gain, regression-loss, and complexity-weight objective.
+Relative tensor and dictionary resources remain relative to the candidate file, so
+the exported patch must be written beside that file.

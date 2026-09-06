@@ -30,11 +30,12 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - canonical SAE dictionary loading and top-feature inspection;
 - request-scoped single-feature SAE scaling;
 - regression-aware patch search, reproducible export, and verification;
+- bounded heterogeneous multi-intervention search with an explicit no-op;
 - opt-in fixed-address CUDA Graph control slots for global scalar patches.
 
-Scheduler-isolated single-request breakpoints, multi-operation combinatorial search,
-and CUDA Graph trace capture are not yet implemented. Live trace events and
-request-scoped interventions currently require an eager execution path.
+Scheduler-isolated single-request breakpoints and CUDA Graph trace capture are not
+yet implemented. Live trace events and request-scoped interventions currently
+require an eager execution path.
 
 ## Installation
 

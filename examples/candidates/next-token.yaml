@@ -1,0 +1,27 @@
+schema_version: ldb.candidates/v1alpha1
+
+candidates:
+  - candidate_id: scale-block-0-up
+    complexity: 0.25
+    intervention:
+      hook: block.0.residual.post
+      operation: scale
+      value: 1.25
+      request_scoped: true
+
+  - candidate_id: scale-block-1-up
+    complexity: 0.25
+    intervention:
+      hook: block.1.residual.post
+      operation: scale
+      value: 1.25
+      request_scoped: true
+
+  - candidate_id: ablate-head-0
+    complexity: 1.0
+    intervention:
+      hook: block.1.attention.heads
+      operation: head_ablate
+      head: 0
+      num_heads: 2
+      request_scoped: true
