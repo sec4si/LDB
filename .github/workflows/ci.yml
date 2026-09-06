@@ -28,6 +28,11 @@ jobs:
       - name: Type check
         if: matrix.python-version == '3.11'
         run: mypy src
+      - name: Verify schemas
+        run: |
+          python scripts/generate_schemas.py
+          git diff --exit-code -- schemas
+          test -z "$(git status --porcelain --untracked-files=all -- schemas)"
       - name: Test
         run: pytest
       - name: Build wheel

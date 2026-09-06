@@ -1,0 +1,316 @@
+{
+  "$defs": {
+    "CaseScore": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_log_probability": {
+          "title": "Baseline Log Probability",
+          "type": "number"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "title": "Category",
+          "type": "string"
+        },
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        },
+        "group": {
+          "enum": [
+            "target",
+            "related",
+            "regression"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "baseline_log_probability",
+        "patched_log_probability",
+        "delta"
+      ],
+      "title": "CaseScore",
+      "type": "object"
+    },
+    "CombinationTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/CaseScore"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "complexity": {
+          "title": "Complexity",
+          "type": "number"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/$defs/Intervention"
+          },
+          "title": "Interventions",
+          "type": "array"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "regression_loss": {
+          "title": "Regression Loss",
+          "type": "number"
+        },
+        "related_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Gain"
+        },
+        "target_gain": {
+          "title": "Target Gain",
+          "type": "number"
+        }
+      },
+      "required": [
+        "candidate_ids",
+        "interventions",
+        "target_gain",
+        "regression_loss",
+        "complexity",
+        "objective",
+        "cases"
+      ],
+      "title": "CombinationTrial",
+      "type": "object"
+    },
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "expert": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expert"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "num_heads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Heads"
+        },
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        },
+        "tensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "hook",
+        "operation"
+      ],
+      "title": "Intervention",
+      "type": "object"
+    },
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias",
+        "head_ablate",
+        "feature_scale"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "complexity_weight": {
+      "title": "Complexity Weight",
+      "type": "number"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "max_interventions": {
+      "exclusiveMinimum": 0,
+      "title": "Max Interventions",
+      "type": "integer"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "regression_weight": {
+      "title": "Regression Weight",
+      "type": "number"
+    },
+    "schema_version": {
+      "const": "ldb.combination-search/v1alpha1",
+      "default": "ldb.combination-search/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
+    "trials": {
+      "items": {
+        "$ref": "#/$defs/CombinationTrial"
+      },
+      "title": "Trials",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "tokenizer_hash",
+    "regression_weight",
+    "complexity_weight",
+    "max_interventions",
+    "trials"
+  ],
+  "title": "CombinationSearchReport",
+  "type": "object"
+}

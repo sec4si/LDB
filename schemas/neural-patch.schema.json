@@ -14,26 +14,7 @@
     "Intervention": {
       "additionalProperties": false,
       "properties": {
-        "hook": {
-          "title": "Hook",
-          "type": "string"
-        },
-        "operation": {
-          "$ref": "#/$defs/InterventionKind"
-        },
-        "value": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Value"
-        },
-        "tensor": {
+        "dictionary": {
           "anyOf": [
             {
               "type": "string"
@@ -43,7 +24,7 @@
             }
           ],
           "default": null,
-          "title": "Tensor"
+          "title": "Dictionary"
         },
         "expert": {
           "anyOf": [
@@ -58,6 +39,19 @@
           "default": null,
           "title": "Expert"
         },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
         "head": {
           "anyOf": [
             {
@@ -70,6 +64,10 @@
           ],
           "default": null,
           "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
         },
         "num_heads": {
           "anyOf": [
@@ -84,7 +82,15 @@
           "default": null,
           "title": "Num Heads"
         },
-        "dictionary": {
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        },
+        "tensor": {
           "anyOf": [
             {
               "type": "string"
@@ -94,25 +100,19 @@
             }
           ],
           "default": null,
-          "title": "Dictionary"
+          "title": "Tensor"
         },
-        "feature": {
+        "value": {
           "anyOf": [
             {
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Feature"
-        },
-        "request_scoped": {
-          "default": true,
-          "title": "Request Scoped",
-          "type": "boolean"
+          "title": "Value"
         }
       },
       "required": [
@@ -138,12 +138,6 @@
     "ValidationSummary": {
       "additionalProperties": false,
       "properties": {
-        "target_success": {
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Target Success",
-          "type": "number"
-        },
         "related_generalization": {
           "anyOf": [
             {
@@ -157,6 +151,12 @@
           ],
           "default": null,
           "title": "Related Generalization"
+        },
+        "target_success": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Target Success",
+          "type": "number"
         },
         "unrelated_regression": {
           "anyOf": [
@@ -180,35 +180,17 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema_version": {
-      "const": "ldb.patch/v1alpha1",
-      "default": "ldb.patch/v1alpha1",
-      "title": "Schema Version",
-      "type": "string"
-    },
-    "patch_id": {
-      "title": "Patch Id",
+    "adapter": {
+      "title": "Adapter",
       "type": "string"
     },
     "description": {
       "title": "Description",
       "type": "string"
     },
-    "model_id": {
-      "title": "Model Id",
-      "type": "string"
-    },
-    "model_revision": {
-      "title": "Model Revision",
-      "type": "string"
-    },
-    "tokenizer_hash": {
-      "title": "Tokenizer Hash",
-      "type": "string"
-    },
-    "adapter": {
-      "title": "Adapter",
-      "type": "string"
+    "evidence": {
+      "$ref": "#/$defs/EvidenceLevel",
+      "default": "observed"
     },
     "hook_schema_version": {
       "default": "ldb.hooks/v1alpha1",
@@ -223,6 +205,28 @@
       "title": "Interventions",
       "type": "array"
     },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "title": "Model Revision",
+      "type": "string"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.patch/v1alpha1",
+      "default": "ldb.patch/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
     "validation": {
       "anyOf": [
         {
@@ -233,10 +237,6 @@
         }
       ],
       "default": null
-    },
-    "evidence": {
-      "$ref": "#/$defs/EvidenceLevel",
-      "default": "observed"
     }
   },
   "required": [

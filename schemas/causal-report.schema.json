@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "CausalTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "effect": {
+          "title": "Effect",
+          "type": "number"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        },
+        "recovery": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recovery"
+        }
+      },
+      "required": [
+        "hook",
+        "patched_log_probability",
+        "effect"
+      ],
+      "title": "CausalTrial",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "clean_log_probability": {
+      "title": "Clean Log Probability",
+      "type": "number"
+    },
+    "clean_prompt": {
+      "title": "Clean Prompt",
+      "type": "string"
+    },
+    "corrupt_log_probability": {
+      "title": "Corrupt Log Probability",
+      "type": "number"
+    },
+    "corrupt_prompt": {
+      "title": "Corrupt Prompt",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "schema_version": {
+      "default": "ldb.causal/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_token_id": {
+      "minimum": 0,
+      "title": "Target Token Id",
+      "type": "integer"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
+    "trials": {
+      "items": {
+        "$ref": "#/$defs/CausalTrial"
+      },
+      "title": "Trials",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "tokenizer_hash",
+    "clean_prompt",
+    "corrupt_prompt",
+    "target_token_id",
+    "clean_log_probability",
+    "corrupt_log_probability",
+    "trials"
+  ],
+  "title": "CausalReport",
+  "type": "object"
+}

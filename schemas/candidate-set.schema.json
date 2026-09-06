@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "expert": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expert"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "num_heads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Heads"
+        },
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        },
+        "tensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "hook",
+        "operation"
+      ],
+      "title": "Intervention",
+      "type": "object"
+    },
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias",
+        "head_ablate",
+        "feature_scale"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    },
+    "PatchCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "complexity": {
+          "default": 1.0,
+          "minimum": 0.0,
+          "title": "Complexity",
+          "type": "number"
+        },
+        "intervention": {
+          "$ref": "#/$defs/Intervention"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "intervention"
+      ],
+      "title": "PatchCandidate",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/PatchCandidate"
+      },
+      "minItems": 1,
+      "title": "Candidates",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "ldb.candidates/v1alpha1",
+      "default": "ldb.candidates/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidates"
+  ],
+  "title": "CandidateSet",
+  "type": "object"
+}

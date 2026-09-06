@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "CaseScore": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_log_probability": {
+          "title": "Baseline Log Probability",
+          "type": "number"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "title": "Category",
+          "type": "string"
+        },
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        },
+        "group": {
+          "enum": [
+            "target",
+            "related",
+            "regression"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "baseline_log_probability",
+        "patched_log_probability",
+        "delta"
+      ],
+      "title": "CaseScore",
+      "type": "object"
+    },
+    "CategorySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "case_count": {
+          "exclusiveMinimum": 0,
+          "title": "Case Count",
+          "type": "integer"
+        },
+        "mean_delta": {
+          "title": "Mean Delta",
+          "type": "number"
+        },
+        "success": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Success",
+          "type": "number"
+        },
+        "worst_delta": {
+          "title": "Worst Delta",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_count",
+        "success",
+        "mean_delta",
+        "worst_delta"
+      ],
+      "title": "CategorySummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/CaseScore"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "categories": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CategorySummary"
+      },
+      "title": "Categories",
+      "type": "object"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "regression_max_drop": {
+      "title": "Regression Max Drop",
+      "type": "number"
+    },
+    "related_generalization": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Related Generalization"
+    },
+    "related_min_gain": {
+      "title": "Related Min Gain",
+      "type": "number"
+    },
+    "schema_version": {
+      "const": "ldb.verification/v1alpha1",
+      "default": "ldb.verification/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_min_gain": {
+      "title": "Target Min Gain",
+      "type": "number"
+    },
+    "target_success": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Target Success",
+      "type": "number"
+    },
+    "unrelated_regression": {
+      "title": "Unrelated Regression",
+      "type": "number"
+    }
+  },
+  "required": [
+    "patch_id",
+    "model_id",
+    "target_min_gain",
+    "related_min_gain",
+    "regression_max_drop",
+    "target_success",
+    "unrelated_regression",
+    "passed",
+    "cases",
+    "categories"
+  ],
+  "title": "VerificationReport",
+  "type": "object"
+}

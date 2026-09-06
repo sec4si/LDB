@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "AgentCapability": {
+      "enum": [
+        "trace.summary",
+        "trace.tensor",
+        "patch.activation",
+        "patch.request_scoped",
+        "breakpoint.batch",
+        "execution.eager_only",
+        "model.identity",
+        "patch.cuda_graph"
+      ],
+      "title": "AgentCapability",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/AgentCapability"
+      },
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "pid": {
+      "exclusiveMinimum": 0,
+      "title": "Pid",
+      "type": "integer"
+    },
+    "protocol_version": {
+      "const": "ldb.agent/v1alpha1",
+      "default": "ldb.agent/v1alpha1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "rank": {
+      "minimum": 0,
+      "title": "Rank",
+      "type": "integer"
+    },
+    "socket_path": {
+      "title": "Socket Path",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokenizer Hash"
+    },
+    "topology": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Topology",
+      "type": "object"
+    },
+    "world_size": {
+      "exclusiveMinimum": 0,
+      "title": "World Size",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "backend",
+    "backend_version",
+    "model_id",
+    "pid",
+    "rank",
+    "world_size",
+    "socket_path",
+    "capabilities"
+  ],
+  "title": "AgentDescriptor",
+  "type": "object"
+}

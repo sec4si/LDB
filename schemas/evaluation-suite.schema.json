@@ -1,0 +1,97 @@
+{
+  "$defs": {
+    "BehaviorCase": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "title": "Category",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "target_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Text"
+        },
+        "target_token_id": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Token Id"
+        },
+        "weight": {
+          "default": 1.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_id",
+        "prompt"
+      ],
+      "title": "BehaviorCase",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "regression": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BehaviorCase"
+      },
+      "title": "Regression",
+      "type": "array"
+    },
+    "related": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BehaviorCase"
+      },
+      "title": "Related",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "ldb.suite/v1alpha1",
+      "default": "ldb.suite/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target": {
+      "items": {
+        "$ref": "#/$defs/BehaviorCase"
+      },
+      "minItems": 1,
+      "title": "Target",
+      "type": "array"
+    }
+  },
+  "required": [
+    "target"
+  ],
+  "title": "EvaluationSuite",
+  "type": "object"
+}

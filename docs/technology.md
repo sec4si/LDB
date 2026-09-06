@@ -27,6 +27,9 @@ the serving engine.
 | Quality gates | Ruff, strict mypy, pytest | Formatting, static contracts, and focused behavioral tests. |
 | CI | GitHub Actions, Python 3.11/3.12 | Verifies the supported interpreter range and wheel construction. |
 
+All versioned Pydantic artifacts and control messages have committed JSON Schemas in
+`schemas/`. CI regenerates them and rejects schema drift.
+
 ## Deliberate exclusions
 
 - No web UI or application-level prompt observability layer.

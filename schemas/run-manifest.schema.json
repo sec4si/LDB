@@ -1,0 +1,115 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "title": "Adapter",
+      "type": "string"
+    },
+    "adapter_version": {
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "generation": {
+      "additionalProperties": true,
+      "title": "Generation",
+      "type": "object"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "output_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Text"
+    },
+    "parent_run_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Run Id"
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "prompt_token_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Prompt Token Ids",
+      "type": "array"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.run/v1alpha1",
+      "default": "ldb.run/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_id": {
+      "title": "Tokenizer Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "model_id",
+    "tokenizer_id",
+    "backend",
+    "backend_version",
+    "adapter",
+    "adapter_version",
+    "prompt",
+    "prompt_token_ids",
+    "generation"
+  ],
+  "title": "RunManifest",
+  "type": "object"
+}

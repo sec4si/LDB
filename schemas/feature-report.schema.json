@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "FeatureActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "active_fraction": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Active Fraction",
+          "type": "number"
+        },
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "peak": {
+          "title": "Peak",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature",
+        "peak",
+        "mean",
+        "active_fraction"
+      ],
+      "title": "FeatureActivation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dictionary_hash": {
+      "title": "Dictionary Hash",
+      "type": "string"
+    },
+    "feature_count": {
+      "exclusiveMinimum": 0,
+      "title": "Feature Count",
+      "type": "integer"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureActivation"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "hook": {
+      "title": "Hook",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.features/v1alpha1",
+      "default": "ldb.features/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 0,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "token_count": {
+      "minimum": 0,
+      "title": "Token Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "run_id",
+    "hook",
+    "sequence",
+    "dictionary_hash",
+    "token_count",
+    "feature_count",
+    "features"
+  ],
+  "title": "FeatureReport",
+  "type": "object"
+}

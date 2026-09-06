@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "protocol_version": {
+      "const": "ldb.agent/v1alpha1",
+      "default": "ldb.agent/v1alpha1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "result": {
+      "default": null,
+      "title": "Result"
+    }
+  },
+  "required": [
+    "request_id",
+    "ok"
+  ],
+  "title": "AgentResponse",
+  "type": "object"
+}

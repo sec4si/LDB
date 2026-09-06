@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "CaseScore": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_log_probability": {
+          "title": "Baseline Log Probability",
+          "type": "number"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "title": "Category",
+          "type": "string"
+        },
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        },
+        "group": {
+          "enum": [
+            "target",
+            "related",
+            "regression"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "baseline_log_probability",
+        "patched_log_probability",
+        "delta"
+      ],
+      "title": "CaseScore",
+      "type": "object"
+    },
+    "SearchTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/CaseScore"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "complexity": {
+          "title": "Complexity",
+          "type": "number"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "regression_loss": {
+          "title": "Regression Loss",
+          "type": "number"
+        },
+        "related_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Gain"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "target_gain": {
+          "title": "Target Gain",
+          "type": "number"
+        }
+      },
+      "required": [
+        "hook",
+        "scale",
+        "target_gain",
+        "regression_loss",
+        "complexity",
+        "objective",
+        "cases"
+      ],
+      "title": "SearchTrial",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "complexity_weight": {
+      "title": "Complexity Weight",
+      "type": "number"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "regression_weight": {
+      "title": "Regression Weight",
+      "type": "number"
+    },
+    "schema_version": {
+      "const": "ldb.search/v1alpha1",
+      "default": "ldb.search/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
+    "trials": {
+      "items": {
+        "$ref": "#/$defs/SearchTrial"
+      },
+      "title": "Trials",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "tokenizer_hash",
+    "regression_weight",
+    "complexity_weight",
+    "trials"
+  ],
+  "title": "SearchReport",
+  "type": "object"
+}
