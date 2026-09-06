@@ -61,6 +61,7 @@ def get_or_create_agent(
         world_size=world_size,
         request_context=bool(values.get("request_context", False)),
         topology=dict(values.get("topology", {})),
+        graph_control=bool(values.get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1")),
     ).start()
     _AGENTS[key] = agent
     return agent
@@ -94,9 +95,11 @@ def install_model_runtime(
     for index in range(len(blocks)):
         prefix = f"{block_path}.{index}"
         block = module_by_path[prefix]
+        _prepare_graph_hook(agent, f"block.{index}.residual.pre", block)
         agent.add_handle(
             block.register_forward_pre_hook(_make_pre_hook(agent, f"block.{index}.residual.pre"))
         )
+        _prepare_graph_hook(agent, f"block.{index}.residual.post", block)
         agent.add_handle(
             block.register_forward_hook(_make_post_hook(agent, f"block.{index}.residual.post"))
         )
@@ -224,10 +227,26 @@ def _install_first_post_hook(
     for suffix in suffixes:
         module = module_by_path.get(f"{prefix}.{suffix}")
         if module is not None:
+            _prepare_graph_hook(agent, f"block.{index}.{normalized}", module)
             agent.add_handle(
                 module.register_forward_hook(_make_post_hook(agent, f"block.{index}.{normalized}"))
             )
             return
+
+
+def _floating_parameter(module: Any) -> Any:
+    parameter = next(
+        (value for value in module.parameters(recurse=True) if value.is_floating_point()),
+        None,
+    )
+    if parameter is None:
+        raise ValueError("Cannot prepare a CUDA Graph control slot without a floating parameter")
+    return parameter
+
+
+def _prepare_graph_hook(agent: AgentRuntime, hook: str, module: Any) -> None:
+    if agent.graph_control:
+        agent.prepare_graph_hook(hook, _floating_parameter(module))
 
 
 def _package_version(package: str) -> str:

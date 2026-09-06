@@ -81,3 +81,34 @@ def test_runtime_installation_is_idempotent(tmp_path: Path) -> None:
         assert first is second
     finally:
         close_agents()
+
+
+def test_installed_runtime_prepares_graph_control_slots(tmp_path: Path) -> None:
+    model = Model()
+    agent = install_model_runtime(
+        model,
+        backend="test-graph-hooks",
+        backend_version="1",
+        model_id="test-model",
+        config={
+            "socket_dir": tmp_path / "agents",
+            "output_dir": tmp_path / "runs",
+            "graph_control": True,
+        },
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        baseline = model(torch.ones(1, 2))
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "ablate-output",
+                "hook": "block.0.residual.post",
+                "operation": "ablate",
+            },
+        )
+        patched = model(torch.ones(1, 2))
+        assert baseline.abs().sum().item() > 0
+        assert patched.tolist() == [[0.0, 0.0]]
+    finally:
+        close_agents()

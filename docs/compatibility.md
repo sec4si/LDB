@@ -21,7 +21,8 @@ parallel topology before that combination is listed as verified.
 |---|---:|---:|---:|---:|
 | Normalized module trace | Yes | Implemented | Implemented | Not yet |
 | Selective tensor capture | Yes | Implemented | Implemented | Not yet |
-| Global activation patch | N/A | Implemented | Implemented | Not yet |
+| Global scalar activation patch | N/A | Implemented | Implemented | Experimental |
+| Global tensor activation patch | N/A | Implemented | Implemented | Not yet |
 | Request-scoped activation patch | N/A | Implemented | Implemented | Not yet |
 | Batch safe-point breakpoint | N/A | Implemented | Implemented | Not yet |
 | Single-request scheduler suspension | N/A | Not yet | Not yet | Not yet |
@@ -29,3 +30,7 @@ parallel topology before that combination is listed as verified.
 "Implemented" means the adapter and protocol path exist and have dependency-free
 contract tests. It does not mean every model architecture or kernel backend has
 passed a real GPU acceptance run.
+
+"Experimental" means fixed-address graph control slots and CPU contract tests exist,
+but the path has not passed real CUDA Graph replay acceptance. Enable it explicitly
+with `LDB_CUDA_GRAPH=1`. It supports global scalar `scale`, `add`, and `ablate` only.

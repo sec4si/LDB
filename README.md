@@ -25,11 +25,13 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - recording bounded live traces and applying reversible scalar, tensor, and
   expert-routing interventions on eager execution paths;
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
-- clean/corrupt activation patching for causal next-token localization.
+- clean/corrupt activation patching for causal next-token localization;
+- regression-aware patch search, reproducible export, and verification;
+- opt-in fixed-address CUDA Graph control slots for global scalar patches.
 
 Scheduler-isolated single-request breakpoints, multi-operation combinatorial search,
-and CUDA Graph-aware interventions are not yet implemented. Live activation hooks
-currently require an eager execution path.
+and CUDA Graph trace capture are not yet implemented. Live trace events and
+request-scoped interventions currently require an eager execution path.
 
 ## Installation
 
@@ -77,6 +79,7 @@ SGLang:
 
 ```console
 LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
+  LDB_CUDA_GRAPH=1 \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   sglang serve --model-path <model> --disable-cuda-graph
@@ -86,6 +89,7 @@ vLLM:
 
 ```console
 LDB_ENABLE=1 VLLM_PLUGINS=ldb \
+  LDB_CUDA_GRAPH=1 \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   vllm serve <model> --enforce-eager

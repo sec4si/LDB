@@ -21,6 +21,7 @@ class AgentCapability(StrEnum):
     BREAKPOINT_BATCH = "breakpoint.batch"
     EAGER_ONLY = "execution.eager_only"
     MODEL_IDENTITY = "model.identity"
+    PATCH_CUDA_GRAPH = "patch.cuda_graph"
 
 
 class AgentDescriptor(FrozenModel):

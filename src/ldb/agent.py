@@ -18,6 +18,7 @@ from typing import Any, cast
 from safetensors.torch import save_file
 
 from ldb.context import BatchContext, current_batch_context
+from ldb.graph import GraphControlSlot
 from ldb.interventions import apply_tensor_operation, load_intervention_tensor
 from ldb.live import (
     AgentCapability,
@@ -85,6 +86,7 @@ class AgentRuntime:
         max_events: int = 4096,
         request_context: bool = False,
         topology: Mapping[str, int] | None = None,
+        graph_control: bool = False,
     ) -> None:
         if rank < 0 or world_size <= rank:
             raise ValueError("rank must be within world_size")
@@ -100,9 +102,11 @@ class AgentRuntime:
         self.max_events = max_events
         self.request_context = request_context
         self.topology = dict(topology or {})
+        self.graph_control = graph_control
         self._events: deque[LiveTraceEvent] = deque(maxlen=max_events)
         self._patches: dict[str, LiveIntervention] = {}
         self._replacement_tensors: dict[str, Any] = {}
+        self._graph_slots: dict[str, GraphControlSlot] = {}
         self._breakpoints: dict[str, LiveBreakpoint] = {}
         self._stopped: dict[str, BreakpointHit] = {}
         self._arm = ArmConfig(hooks=())
@@ -133,6 +137,8 @@ class AgentRuntime:
             capabilities.append(AgentCapability.PATCH_REQUEST_SCOPED)
         if self.model_revision is not None and self.tokenizer_hash is not None:
             capabilities.append(AgentCapability.MODEL_IDENTITY)
+        if self.graph_control:
+            capabilities.append(AgentCapability.PATCH_CUDA_GRAPH)
         return AgentDescriptor(
             backend=self.backend,
             backend_version=self.backend_version,
@@ -186,6 +192,13 @@ class AgentRuntime:
     def add_handle(self, handle: Any) -> None:
         self._handles.append(handle)
 
+    def prepare_graph_hook(self, hook: str, reference: Any) -> None:
+        if not self.graph_control:
+            return
+        with self._lock:
+            if hook not in self._graph_slots:
+                self._graph_slots[hook] = GraphControlSlot.create(reference)
+
     def dispatch(self, method: str, params: Mapping[str, Any]) -> Any:
         if method == "hello":
             return self.descriptor.model_dump(mode="json")
@@ -227,6 +240,8 @@ class AgentRuntime:
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             _validate_live_patch(patch)
+            if self.graph_control:
+                _validate_graph_patch(patch)
             replacement = load_intervention_tensor(patch.tensor) if patch.tensor else None
             with self._lock:
                 self._patches[patch.patch_id] = patch
@@ -234,12 +249,14 @@ class AgentRuntime:
                     self._replacement_tensors.pop(patch.patch_id, None)
                 else:
                     self._replacement_tensors[patch.patch_id] = replacement
+            self._refresh_graph_slots()
             return patch.model_dump(mode="json")
         if method == "patch.remove":
             patch_id = str(params["patch_id"])
             with self._lock:
                 removed = self._patches.pop(patch_id, None)
                 self._replacement_tensors.pop(patch_id, None)
+            self._refresh_graph_slots()
             return {"removed": removed is not None}
         if method == "patch.list":
             with self._lock:
@@ -303,19 +320,23 @@ class AgentRuntime:
                 if patch.enabled and fnmatch.fnmatchcase(hook, patch.hook)
             )
 
-        modified = tensor
-        patch_ids: list[str] = []
-        for patch in patches:
-            with self._lock:
-                replacement = self._replacement_tensors.get(patch.patch_id)
-            modified, applied = _apply_intervention(
-                modified,
-                patch,
-                context,
-                replacement=replacement,
-            )
-            if applied:
-                patch_ids.append(patch.patch_id)
+        if self.graph_control:
+            modified = self._apply_graph_control(hook, tensor)
+            patch_ids = [patch.patch_id for patch in patches]
+        else:
+            modified = tensor
+            patch_ids = []
+            for patch in patches:
+                with self._lock:
+                    replacement = self._replacement_tensors.get(patch.patch_id)
+                modified, applied = _apply_intervention(
+                    modified,
+                    patch,
+                    context,
+                    replacement=replacement,
+                )
+                if applied:
+                    patch_ids.append(patch.patch_id)
 
         if should_record:
             observed = _select_tensor(tensor, selected_spans) if arm.request_ids else tensor
@@ -340,6 +361,30 @@ class AgentRuntime:
             with self._lock:
                 self._events.append(event)
         return modified
+
+    def _apply_graph_control(self, hook: str, tensor: Any) -> Any:
+        with self._lock:
+            slot = self._graph_slots.get(hook)
+            if slot is None:
+                slot = GraphControlSlot.create(tensor)
+                self._graph_slots[hook] = slot
+                patches = tuple(self._patches.values())
+            else:
+                patches = ()
+        if patches:
+            scale, bias = _graph_patch_parameters(hook, patches)
+            slot.update(scale=scale, bias=bias)
+        return slot.apply(tensor)
+
+    def _refresh_graph_slots(self) -> None:
+        if not self.graph_control:
+            return
+        with self._lock:
+            slots = tuple(self._graph_slots.items())
+            patches = tuple(self._patches.values())
+        for hook, slot in slots:
+            scale, bias = _graph_patch_parameters(hook, patches)
+            slot.update(scale=scale, bias=bias)
 
     def _capture_tensor(self, sequence: int, tensor: Any) -> str:
         self.tensor_dir.mkdir(parents=True, exist_ok=True)
@@ -486,3 +531,37 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
         patch.value is not None or patch.tensor is not None or patch.expert is not None
     ):
         raise ValueError("ablate does not accept a value or tensor")
+
+
+def _validate_graph_patch(patch: LiveIntervention) -> None:
+    if patch.request_ids:
+        raise ValueError("CUDA Graph control patches cannot be request-scoped")
+    if patch.operation not in {
+        InterventionKind.SCALE,
+        InterventionKind.ADD,
+        InterventionKind.ABLATE,
+    }:
+        raise ValueError(f"CUDA Graph control does not support {patch.operation.value}")
+    if patch.tensor is not None:
+        raise ValueError("CUDA Graph control supports scalar interventions only")
+
+
+def _graph_patch_parameters(
+    hook: str, patches: tuple[LiveIntervention, ...]
+) -> tuple[float, float]:
+    scale = 1.0
+    bias = 0.0
+    for patch in patches:
+        if not patch.enabled or not fnmatch.fnmatchcase(hook, patch.hook):
+            continue
+        if patch.operation is InterventionKind.SCALE:
+            assert patch.value is not None
+            scale *= patch.value
+            bias *= patch.value
+        elif patch.operation is InterventionKind.ADD:
+            assert patch.value is not None
+            bias += patch.value
+        elif patch.operation is InterventionKind.ABLATE:
+            scale = 0.0
+            bias = 0.0
+    return scale, bias

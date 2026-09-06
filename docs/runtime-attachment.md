@@ -77,10 +77,10 @@ The `sglang.srt.plugins` entry point installs LDB after
 registers normalized probes on decoder blocks, attention modules, MLP modules, and
 visible MoE gates.
 
-SGLang registers Python forward hooks after CUDA Graph capture. Those hooks execute
-on eager forwards and do not execute during CUDA Graph replay. Operators must use
-`--disable-cuda-graph` for complete live traces until LDB gains a graph-native probe
-path.
+Python hooks do not execute during CUDA Graph replay. Operators must use
+`--disable-cuda-graph` for complete live traces. With `LDB_CUDA_GRAPH=1`, LDB installs
+fixed-address scalar control slots before graph capture; captured operations read
+those buffers during replay even though the Python hook does not run.
 
 ### vLLM
 
@@ -90,7 +90,13 @@ and installs the same normalized probes. The plugin is loaded only when both
 
 `--enforce-eager` is currently required for complete traces. The agent reports
 `execution.eager_only` so clients cannot mistake a partial CUDA Graph trace for a
-complete trace.
+complete trace. `LDB_CUDA_GRAPH=1` additionally reports `patch.cuda_graph` and enables
+the same fixed-address scalar control slots before vLLM captures the model.
+
+Graph control composes global scalar `scale`, `add`, and `ablate` patches in install
+order. It rejects request filters, tensor replacement, and expert routing because
+those operations require dynamic layouts that the current graph slot does not
+represent. Updating a slot synchronizes its device before the control call returns.
 
 ## Current safety boundary
 

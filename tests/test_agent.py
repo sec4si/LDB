@@ -232,3 +232,74 @@ def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
     finally:
         client.call("continue")
         agent.close()
+
+
+def test_graph_control_composes_scalar_patches(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        graph_control=True,
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        capabilities = client.call("hello")["capabilities"]
+        assert "patch.cuda_graph" in capabilities
+        agent.prepare_graph_hook("block.0.residual.post", torch.ones(1))
+        assert agent.process_tensor("block.0.residual.post", torch.tensor([2.0])).tolist() == [2.0]
+
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "scale",
+                "hook": "block.0.residual.post",
+                "operation": "scale",
+                "value": 0.5,
+            },
+        )
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "bias",
+                "hook": "block.0.residual.post",
+                "operation": "add",
+                "value": 1.0,
+            },
+        )
+        output = agent.process_tensor("block.0.residual.post", torch.tensor([2.0]))
+        assert output.tolist() == [2.0]
+
+        client.call("patch.remove", {"patch_id": "scale"})
+        output = agent.process_tensor("block.0.residual.post", torch.tensor([2.0]))
+        assert output.tolist() == [3.0]
+    finally:
+        agent.close()
+
+
+def test_graph_control_rejects_request_scoped_patch(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        request_context=True,
+        graph_control=True,
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        with pytest.raises(RuntimeError, match="cannot be request-scoped"):
+            client.call(
+                "patch.set",
+                {
+                    "patch_id": "request-scale",
+                    "hook": "block.0.residual.post",
+                    "operation": "scale",
+                    "value": 0.5,
+                    "request_ids": ["request-a"],
+                },
+            )
+    finally:
+        agent.close()
