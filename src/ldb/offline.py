@@ -40,6 +40,7 @@ def install_interventions(
                 expert: int | None = intervention.expert,
                 head: int | None = intervention.head,
                 num_heads: int | None = intervention.num_heads,
+                token: int | None = intervention.token,
             ) -> Any:
                 return apply_tensor_operation(
                     tensor,
@@ -50,6 +51,7 @@ def install_interventions(
                     head=head,
                     num_heads=num_heads,
                     feature=loaded,
+                    token=token,
                 )
 
             handles.extend(runtime.install_intervention(hook, apply) for hook in matches)

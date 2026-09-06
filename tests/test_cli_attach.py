@@ -68,10 +68,19 @@ def test_parse_patch_arguments_supports_tensor_expert_and_request() -> None:
     assert parsed.num_heads == 8
 
     parsed = _parse_patch_arguments(
-        ["0.5", "--dictionary", "/tmp/sae.safetensors", "--feature", "12"]
+        [
+            "0.5",
+            "--dictionary",
+            "/tmp/sae.safetensors",
+            "--feature",
+            "12",
+            "--token",
+            "-1",
+        ]
     )
     assert parsed.dictionary == "/tmp/sae.safetensors"
     assert parsed.feature == 12
+    assert parsed.token == -1
 
 
 def test_attach_loads_versioned_patch_into_live_agent(tmp_path: Path) -> None:

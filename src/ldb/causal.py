@@ -60,6 +60,7 @@ class CausalReport(FrozenModel):
     clean_prompt: str
     corrupt_prompt: str
     target_token_id: int = Field(ge=0)
+    token_index: int = -1
     clean_log_probability: float
     corrupt_log_probability: float
     trials: tuple[CausalTrial, ...]
@@ -83,6 +84,7 @@ class CausalGraphReport(FrozenModel):
     clean_prompt: str
     corrupt_prompt: str
     target_token_id: int = Field(ge=0)
+    token_index: int = -1
     clean_log_probability: float
     corrupt_log_probability: float
     nodes: tuple[CausalTrial, ...]
@@ -95,6 +97,7 @@ def causal_trace(
     clean_prompt: str,
     corrupt_prompt: str,
     target_token_id: int,
+    token_index: int = -1,
     hook_globs: Sequence[str] = ("block.*.residual.post",),
 ) -> CausalReport:
     """Patch clean activations into a corrupt run one hook at a time."""
@@ -111,7 +114,7 @@ def causal_trace(
     handles: list[ProbeHandle] = []
 
     def capture(hook: HookPoint, tensor: Any) -> None:
-        clean_activations[hook.name] = tensor.detach().clone()
+        clean_activations[hook.name] = _token_slice(tensor, token_index).detach().clone()
 
     try:
         handles = [runtime.install_probe(hook, capture) for hook in hooks]
@@ -130,8 +133,8 @@ def causal_trace(
     for hook in hooks:
         clean_activation = clean_activations[hook.name]
 
-        def replace(_: HookPoint, __: Any, value: Any = clean_activation) -> Any:
-            return value
+        def replace(_: HookPoint, tensor: Any, value: Any = clean_activation) -> Any:
+            return _replace_token(tensor, value, token_index)
 
         handle = runtime.install_intervention(hook, replace)
         try:
@@ -159,6 +162,7 @@ def causal_trace(
         clean_prompt=clean_prompt,
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
+        token_index=token_index,
         clean_log_probability=clean_score,
         corrupt_log_probability=corrupt_score,
         trials=tuple(trials),
@@ -171,6 +175,7 @@ def causal_propagation_graph(
     clean_prompt: str,
     corrupt_prompt: str,
     target_token_id: int,
+    token_index: int = -1,
     hook_globs: Sequence[str] = ("block.*.residual.post",),
     minimum_recovery: float = 0.01,
 ) -> CausalGraphReport:
@@ -183,9 +188,11 @@ def causal_propagation_graph(
     )
     if not hooks:
         raise ValueError("No hook points matched the requested patterns")
-    clean, clean_order, clean_score = _capture_run(runtime, hooks, clean_prompt, target_token_id)
+    clean, clean_order, clean_score = _capture_run(
+        runtime, hooks, clean_prompt, target_token_id, token_index
+    )
     corrupt, corrupt_order, corrupt_score = _capture_run(
-        runtime, hooks, corrupt_prompt, target_token_id
+        runtime, hooks, corrupt_prompt, target_token_id, token_index
     )
     if clean_order != corrupt_order:
         raise ValueError("Clean and corrupt runs executed selected hooks in different orders")
@@ -197,13 +204,13 @@ def causal_propagation_graph(
     for source_index, source_name in enumerate(clean_order):
         source = hook_by_name[source_name]
 
-        def replace(_: HookPoint, __: Any, value: Any = clean[source_name]) -> Any:
-            return value
+        def replace(_: HookPoint, tensor: Any, value: Any = clean[source_name]) -> Any:
+            return _replace_token(tensor, value, token_index)
 
         handle = runtime.install_intervention(source, replace)
         try:
             patched, patched_order, patched_score = _capture_run(
-                runtime, hooks, corrupt_prompt, target_token_id
+                runtime, hooks, corrupt_prompt, target_token_id, token_index
             )
         finally:
             handle.remove()
@@ -242,6 +249,7 @@ def causal_propagation_graph(
         clean_prompt=clean_prompt,
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
+        token_index=token_index,
         clean_log_probability=clean_score,
         corrupt_log_probability=corrupt_score,
         nodes=tuple(nodes),
@@ -254,6 +262,7 @@ def _capture_run(
     hooks: tuple[HookPoint, ...],
     prompt: str,
     target_token_id: int,
+    token_index: int,
 ) -> tuple[dict[str, Any], tuple[str, ...], float]:
     activations: dict[str, Any] = {}
     order: list[str] = []
@@ -261,7 +270,7 @@ def _capture_run(
     def capture(hook: HookPoint, tensor: Any) -> None:
         if hook.name not in activations:
             order.append(hook.name)
-        activations[hook.name] = tensor.detach().clone()
+        activations[hook.name] = _token_slice(tensor, token_index).detach().clone()
 
     handles = [runtime.install_probe(hook, capture) for hook in hooks]
     try:
@@ -281,3 +290,34 @@ def _activation_recovery(clean: Any, corrupt: Any, patched: Any) -> float:
         return 0.0
     remaining = (patched.float() - clean.float()).norm().item()
     return float(1.0 - remaining / baseline)
+
+
+def _token_slice(tensor: Any, token_index: int) -> Any:
+    if tensor.ndim == 0:
+        raise ValueError("Token selection requires a tensor with at least one dimension")
+    axis = tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    size = tensor.shape[axis]
+    index = token_index if token_index >= 0 else size + token_index
+    if index < 0 or index >= size:
+        raise ValueError(f"Token {token_index} is outside token dimension of size {size}")
+    selector: list[Any] = [slice(None)] * tensor.ndim
+    selector[axis] = index
+    return tensor[tuple(selector)]
+
+
+def _replace_token(tensor: Any, replacement: Any, token_index: int) -> Any:
+    selected = _token_slice(tensor, token_index)
+    value = replacement.to(device=selected.device, dtype=selected.dtype)
+    if value.shape != selected.shape:
+        raise ValueError(
+            f"Clean token activation shape {tuple(value.shape)} does not match "
+            f"corrupt token activation shape {tuple(selected.shape)}"
+        )
+    axis = tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    size = tensor.shape[axis]
+    index = token_index if token_index >= 0 else size + token_index
+    selector: list[Any] = [slice(None)] * tensor.ndim
+    selector[axis] = index
+    modified = tensor.clone()
+    modified[tuple(selector)] = value
+    return modified

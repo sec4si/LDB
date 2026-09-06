@@ -60,6 +60,7 @@ class LiveIntervention(FrozenModel):
     num_heads: int | None = Field(default=None, gt=0)
     dictionary: str | None = None
     feature: int | None = Field(default=None, ge=0)
+    token: int | None = None
     request_ids: tuple[str, ...] = ()
     enabled: bool = True
 

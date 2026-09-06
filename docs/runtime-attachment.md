@@ -59,7 +59,7 @@ the serving worker's filesystem and must contain either one tensor or a tensor n
   --head 17 --heads 32 --request request-42
 (ldb) patch-set feature-1 'block.20.residual.post' feature_scale 0.4 \
   --dictionary /srv/ldb/block-20-sae.safetensors --feature 18372 \
-  --request request-42
+  --token -1 --request request-42
 (ldb) patch-load neural-patch.yaml --request request-42
 ```
 
@@ -70,6 +70,10 @@ installed if a later intervention or rank fails. A request-scoped intervention
 cannot be loaded without at least one `--request`. Set `LDB_MODEL_REVISION` and
 `LDB_TOKENIZER_HASH` at server startup when the serving engine does not expose those
 immutable identities from the loaded model.
+
+`--token INDEX` narrows an intervention to one token within every selected request;
+negative indices count from that request's end. Live token selectors require at
+least one `--request` so continuous batches cannot be indexed ambiguously.
 
 Patch and breakpoint IDs are immutable while installed. Remove an existing ID
 before reusing it. Reversible multi-rank commands snapshot prior state before

@@ -137,6 +137,11 @@
       "title": "Target Token Id",
       "type": "integer"
     },
+    "token_index": {
+      "default": -1,
+      "title": "Token Index",
+      "type": "integer"
+    },
     "tokenizer_hash": {
       "title": "Tokenizer Hash",
       "type": "string"

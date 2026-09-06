@@ -102,6 +102,18 @@
           "default": null,
           "title": "Tensor"
         },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
         "value": {
           "anyOf": [
             {

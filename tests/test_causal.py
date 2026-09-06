@@ -82,6 +82,26 @@ class PropagationRuntime(FakeRuntime):
         return float(target.item())
 
 
+class VariableLengthRuntime(FakeRuntime):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hooks = (self.hooks[0],)
+
+    def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
+        assert target_token_id == 7
+        hook = self.hooks[0]
+        value = (
+            torch.tensor([[[0.0], [0.0], [1.0]]])
+            if prompt == "clean"
+            else torch.tensor([[[0.0], [0.0]]])
+        )
+        for callback in self.interventions.get(hook.name, []):
+            value = callback(hook, value)
+        for callback in self.probes.get(hook.name, []):
+            callback(hook, value)
+        return float(value[0, -1, 0])
+
+
 def test_causal_trace_ranks_clean_activation_recovery() -> None:
     report = causal_trace(
         FakeRuntime(),
@@ -114,3 +134,19 @@ def test_causal_graph_measures_directed_activation_recovery() -> None:
     assert report.edges[0].source == "block.0.residual.post"
     assert report.edges[0].target == "block.1.residual.post"
     assert report.edges[0].activation_recovery == 1.0
+
+
+def test_causal_trace_patches_one_token_across_different_sequence_lengths() -> None:
+    report = causal_trace(
+        VariableLengthRuntime(),
+        clean_prompt="clean",
+        corrupt_prompt="corrupt",
+        target_token_id=7,
+        token_index=-1,
+    )
+
+    assert report.token_index == -1
+    assert report.clean_log_probability == 1.0
+    assert report.corrupt_log_probability == 0.0
+    assert report.trials[0].patched_log_probability == 1.0
+    assert report.trials[0].recovery == 1.0

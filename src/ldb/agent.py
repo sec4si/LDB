@@ -275,6 +275,8 @@ class AgentRuntime:
             self._require_matching_hooks((patch.hook,))
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
+            if patch.token is not None and not patch.request_ids:
+                raise ValueError("Live token selectors require at least one request ID")
             _validate_live_patch(patch)
             if self.graph_control:
                 _validate_graph_patch(patch)
@@ -669,6 +671,7 @@ def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> 
         head=patch.head,
         num_heads=patch.num_heads,
         feature=replacement,
+        token=patch.token,
     )
 
 
@@ -758,6 +761,8 @@ def _validate_graph_patch(patch: LiveIntervention) -> None:
         raise ValueError(f"CUDA Graph control does not support {patch.operation.value}")
     if patch.tensor is not None:
         raise ValueError("CUDA Graph control supports scalar interventions only")
+    if patch.token is not None:
+        raise ValueError("CUDA Graph control does not support token selectors")
 
 
 def _graph_patch_parameters(

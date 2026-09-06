@@ -95,6 +95,7 @@ class Intervention(FrozenModel):
     num_heads: int | None = Field(default=None, gt=0)
     dictionary: str | None = None
     feature: int | None = Field(default=None, ge=0)
+    token: int | None = None
     request_scoped: bool = True
 
     @model_validator(mode="after")

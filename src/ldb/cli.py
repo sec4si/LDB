@@ -45,7 +45,7 @@ _ATTACH_HELP = """Commands:
   clear
   patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX]
     [--head INDEX --heads COUNT] [--dictionary PATH --feature INDEX]
-    [--request REQUEST_ID]
+    [--token INDEX] [--request REQUEST_ID]
   patch-load PATH [--request REQUEST_ID]
   patch-remove PATCH_ID
   patches
@@ -68,6 +68,7 @@ class _PatchArguments:
     num_heads: int | None = None
     dictionary: str | None = None
     feature: int | None = None
+    token: int | None = None
     request_ids: list[str] = field(default_factory=list)
 
 
@@ -216,6 +217,7 @@ def causal(
     clean_prompt: Annotated[str, typer.Option("--clean-prompt")],
     corrupt_prompt: Annotated[str, typer.Option("--corrupt-prompt")],
     target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
+    token_index: Annotated[int, typer.Option("--token", help="Activation token index")] = -1,
     hook: Annotated[
         list[str] | None,
         typer.Option("--hook", help="Glob selecting causal patch candidates"),
@@ -234,6 +236,7 @@ def causal(
         clean_prompt=clean_prompt,
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
+        token_index=token_index,
         hook_globs=hook or ["block.*.residual.post"],
     )
     if output is not None:
@@ -262,6 +265,7 @@ def causal_graph(
     clean_prompt: Annotated[str, typer.Option("--clean-prompt")],
     corrupt_prompt: Annotated[str, typer.Option("--corrupt-prompt")],
     target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
+    token_index: Annotated[int, typer.Option("--token", help="Activation token index")] = -1,
     hook: Annotated[
         list[str] | None,
         typer.Option("--hook", help="Glob selecting causal graph nodes"),
@@ -281,6 +285,7 @@ def causal_graph(
         clean_prompt=clean_prompt,
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
+        token_index=token_index,
         hook_globs=hook or ["block.*.residual.post"],
         minimum_recovery=minimum_recovery,
     )
@@ -308,6 +313,9 @@ def search_patches(
         list[float] | None,
         typer.Option("--scale", help="Candidate activation scale"),
     ] = None,
+    token_index: Annotated[
+        int | None, typer.Option("--token", help="Scale only this activation token")
+    ] = None,
     regression_weight: Annotated[float, typer.Option("--regression-weight", min=0.0)] = 1.0,
     complexity_weight: Annotated[float, typer.Option("--complexity-weight", min=0.0)] = 0.01,
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
@@ -327,6 +335,7 @@ def search_patches(
         load_suite(suite),
         hook_globs=hook or ["block.*.residual.post"],
         scales=scale or [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+        token_index=token_index,
         regression_weight=regression_weight,
         complexity_weight=complexity_weight,
     )
@@ -473,6 +482,7 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
             "num_heads",
             "dictionary",
             "feature",
+            "token",
         ):
             if (argument := getattr(parsed, key)) is not None:
                 params[key] = argument
@@ -575,6 +585,8 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
                 )
             if intervention.feature is not None:
                 params["feature"] = intervention.feature
+            if intervention.token is not None:
+                params["token"] = intervention.token
             client.call("patch.set", params)
             installed.append(patch_id)
     except Exception as exc:
@@ -638,6 +650,7 @@ def _parse_patch_arguments(arguments: list[str]) -> _PatchArguments:
             "--heads": "num_heads",
             "--dictionary": "dictionary",
             "--feature": "feature",
+            "--token": "token",
         }
         if option not in {"--request", *option_fields} or index + 1 >= len(arguments):
             raise ValueError(f"Invalid patch option: {option}")

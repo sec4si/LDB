@@ -63,6 +63,7 @@ ldb causal sshleifer/tiny-gpt2 \
   --clean-prompt "The Eiffel Tower is in" \
   --corrupt-prompt "The Eiffel Tower is on" \
   --target-token-id 16046 \
+  --token -1 \
   --output causal-report.json
 
 ldb search sshleifer/tiny-gpt2 \

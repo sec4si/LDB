@@ -43,12 +43,16 @@ tested patches is worthwhile.
 ldb search <model> \
   --suite suite.yaml \
   --hook 'block.*.residual.post' \
+  --token -1 \
   --output patch-search.json \
   --patch-output candidate-patch.yaml
 ```
 
 Patch export fails when the no-op wins. Exported patches bind the resolved model
 revision and tokenizer hash and default to request-scoped deployment.
+When `--token` is present, each trial and exported intervention changes only that
+activation token; negative indices count from the end. Omitting it preserves the
+whole-activation search behavior.
 
 The JSON report contains every per-case baseline and patched score. A high ranking
 is evidence from the supplied suite, not proof of general safety or causal

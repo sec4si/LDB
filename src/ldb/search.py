@@ -15,6 +15,7 @@ import yaml
 from pydantic import Field, model_validator
 
 from ldb.causal import CausalRuntime
+from ldb.interventions import apply_tensor_operation
 from ldb.models import (
     HOOK_SCHEMA_VERSION,
     EvidenceLevel,
@@ -70,6 +71,7 @@ class CaseScore(FrozenModel):
 class SearchTrial(FrozenModel):
     hook: str
     scale: float
+    token: int | None = None
     target_gain: float
     related_gain: float | None = None
     regression_loss: float
@@ -150,6 +152,7 @@ def search_scale_patches(
     *,
     hook_globs: Sequence[str],
     scales: Sequence[float],
+    token_index: int | None = None,
     regression_weight: float = 1.0,
     complexity_weight: float = 0.01,
 ) -> SearchReport:
@@ -185,7 +188,12 @@ def search_scale_patches(
         for scale in scale_candidates:
 
             def apply_scale(_: HookPoint, tensor: Any, factor: float = scale) -> Any:
-                return tensor * factor
+                return apply_tensor_operation(
+                    tensor,
+                    InterventionKind.SCALE,
+                    value=factor,
+                    token=token_index,
+                )
 
             handle = runtime.install_intervention(hook, apply_scale)
             try:
@@ -221,6 +229,7 @@ def search_scale_patches(
                 SearchTrial(
                     hook=hook.name,
                     scale=scale,
+                    token=token_index,
                     target_gain=target_gain,
                     related_gain=related_gain,
                     regression_loss=regression_loss,
@@ -250,7 +259,7 @@ def patch_from_search(report: SearchReport) -> NeuralPatch:
     if best.scale == 1.0 or best.objective <= 0.0:
         raise ValueError("No tested intervention outperformed the no-op baseline")
     identity = hashlib.sha256(
-        f"{report.model_id}\0{report.model_revision}\0{best.hook}\0{best.scale}".encode()
+        f"{report.model_id}\0{report.model_revision}\0{best.hook}\0{best.scale}\0{best.token}".encode()
     ).hexdigest()[:12]
     if report.model_revision is None:
         raise ValueError("Cannot export a patch without a resolved model revision")
@@ -266,6 +275,7 @@ def patch_from_search(report: SearchReport) -> NeuralPatch:
                 hook=best.hook,
                 operation=InterventionKind.SCALE,
                 value=best.scale,
+                token=best.token,
                 request_scoped=True,
             ),
         ),

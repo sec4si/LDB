@@ -89,6 +89,18 @@
         "target_gain": {
           "title": "Target Gain",
           "type": "number"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
         }
       },
       "required": [

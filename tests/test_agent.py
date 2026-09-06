@@ -321,6 +321,71 @@ def test_request_scoped_patch_only_changes_selected_tokens(tmp_path: Path) -> No
         agent.close()
 
 
+def test_request_scoped_token_patch_indexes_each_selected_request(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        request_context=True,
+    ).start()
+    token = set_batch_context(
+        BatchContext(
+            phase="prefill",
+            requests=(
+                RequestSpan("request-a", 0, 2),
+                RequestSpan("request-b", 2, 5),
+            ),
+        )
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "request-b-last",
+                "hook": "block.0.residual.post",
+                "operation": "scale",
+                "value": 10,
+                "token": -1,
+                "request_ids": ["request-b"],
+            },
+        )
+        output = agent.process_tensor(
+            "block.0.residual.post", torch.tensor([[1.0], [2.0], [3.0], [4.0], [5.0]])
+        )
+        assert output.tolist() == [[1.0], [2.0], [3.0], [4.0], [50.0]]
+    finally:
+        reset_batch_context(token)
+        agent.close()
+
+
+def test_live_token_patch_requires_request_scope(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        request_context=True,
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        with pytest.raises(RuntimeError, match="require at least one request ID"):
+            client.call(
+                "patch.set",
+                {
+                    "patch_id": "ambiguous-token",
+                    "hook": "block.0.residual.post",
+                    "operation": "ablate",
+                    "token": 0,
+                },
+            )
+    finally:
+        agent.close()
+
+
 def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",
