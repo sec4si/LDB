@@ -14,6 +14,25 @@ from safetensors.torch import save_file
 from ldb.models import HookPoint, RunManifest, TensorSummary, TraceEvent
 
 
+def summarize_tensor(tensor: object) -> TensorSummary:
+    """Compute a portable scalar summary for a torch tensor."""
+
+    import torch
+
+    if not isinstance(tensor, torch.Tensor):
+        raise TypeError(f"Expected torch.Tensor, got {type(tensor).__name__}")
+    value = tensor.detach()
+    stats = value.float()
+    return TensorSummary(
+        shape=tuple(value.shape),
+        dtype=str(value.dtype),
+        device=str(value.device),
+        mean=stats.mean().item() if value.numel() else None,
+        std=stats.std(correction=0).item() if value.numel() else None,
+        norm=stats.norm().item() if value.numel() else None,
+    )
+
+
 class RunBundleRecorder:
     """Append trace events and selected tensors to a portable directory."""
 
@@ -32,15 +51,7 @@ class RunBundleRecorder:
             raise TypeError(f"Expected torch.Tensor at {hook.name}, got {type(tensor).__name__}")
 
         value = tensor.detach()
-        stats = value.float()
-        summary = TensorSummary(
-            shape=tuple(value.shape),
-            dtype=str(value.dtype),
-            device=str(value.device),
-            mean=stats.mean().item() if value.numel() else None,
-            std=stats.std(correction=0).item() if value.numel() else None,
-            norm=stats.norm().item() if value.numel() else None,
-        )
+        summary = summarize_tensor(value)
 
         tensor_file = None
         if capture:

@@ -20,9 +20,14 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - selectively capturing tensors as `safetensors`;
 - inspecting portable RunBundles from the terminal;
 - validating versioned Neural Patch documents.
+- attaching the CLI to dormant in-process agents over local Unix sockets;
+- loading opt-in SGLang and vLLM runtime plugins;
+- recording bounded live traces and applying reversible activation scale, add,
+  and ablation interventions on eager execution paths.
 
-Interactive breakpoints, causal replay, patch search, vLLM, and SGLang are planned
-but are not yet implemented.
+Request-scoped breakpoints, causal replay, patch search, and CUDA Graph-aware
+interventions are not yet implemented. Live activation hooks currently require an
+eager execution path.
 
 ## Installation
 
@@ -49,6 +54,45 @@ ldb patch validate examples/patches/scale-feature.yaml
 `ldb run` records scalar summaries for every normalized hook point. Full tensors are
 written only for hook names matched by `--capture`.
 
+## Attach to a serving runtime
+
+Install LDB in the same Python environment as the serving runtime. Runtime plugins
+remain dormant unless `LDB_ENABLE=1` is set explicitly.
+
+SGLang:
+
+```console
+LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
+  sglang serve --model-path <model> --disable-cuda-graph
+```
+
+vLLM:
+
+```console
+LDB_ENABLE=1 VLLM_PLUGINS=ldb \
+  vllm serve <model> --enforce-eager
+```
+
+Attach from another terminal:
+
+```console
+ldb attach /tmp/ldb-$(id -u)/agents
+
+(ldb) arm 'block.10.*'
+(ldb) events
+(ldb) break stop-10 'block.10.residual.post' --timeout 60
+(ldb) status
+(ldb) patch-set suppress-block-10 'block.10.residual.post' scale 0.5 \
+  --request <request-id>
+(ldb) continue
+(ldb) patch-remove suppress-block-10
+(ldb) disarm
+```
+
+The agent socket and descriptor files are user-owned and use `0600` permissions.
+The parent directory uses `0700`. Full tensor capture is synchronous and intended
+for isolated debugging requests, not normal production traffic.
+
 ## Design principles
 
 1. **Runtime** — inspect real model execution, not reconstructed diagrams.
@@ -59,4 +103,5 @@ written only for hook names matched by `--capture`.
    hook-schema versions.
 
 See [the v0.1 architecture](docs/architecture-v0.1.md) for component boundaries and
-the implementation roadmap.
+the implementation roadmap. See [runtime compatibility](docs/compatibility.md) for
+the distinction between implemented adapter paths and GPU-verified combinations.

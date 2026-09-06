@@ -56,11 +56,15 @@ The future multi-process design uses a versioned Protobuf control protocol over 
 Unix domain socket. Control messages carry commands, events, metadata, and tensor
 references. Bulk tensors are stored outside the control channel.
 
-Version 0.1 runs in-process but keeps these concepts separate:
+Version 0.1 now supports a prepared in-process agent controlled through a
+user-private Unix domain socket and keeps these concepts separate:
 
 - control: session commands and typed events;
 - data: tensor files in a RunBundle;
 - index: SQLite once cross-run querying is implemented.
+
+See [runtime attachment](runtime-attachment.md) for the live protocol, runtime
+plugin boundaries, and current eager-execution requirement.
 
 ## Evidence levels
 

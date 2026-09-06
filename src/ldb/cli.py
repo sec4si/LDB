@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import shlex
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -11,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ldb import __version__
+from ldb.client import AgentGroupClient
 from ldb.models import HookPoint, RunManifest
 from ldb.patches import load_patch
 from ldb.runtime import ProbeCallback
@@ -20,6 +22,23 @@ app = typer.Typer(no_args_is_help=True, help="Debug latent state in large langua
 patch_app = typer.Typer(no_args_is_help=True, help="Validate and manage Neural Patches.")
 app.add_typer(patch_app, name="patch")
 console = Console()
+
+_ATTACH_HELP = """Commands:
+  status
+  arm [--capture] [--request REQUEST_ID] [HOOK_GLOB ...]
+  disarm
+  events [AFTER_SEQUENCE]
+  clear
+  patch-set PATCH_ID HOOK {scale|add|ablate} [VALUE] [--request REQUEST_ID]
+  patch-remove PATCH_ID
+  patches
+  break BREAKPOINT_ID HOOK [--request REQUEST_ID] [--timeout SECONDS]
+  delete BREAKPOINT_ID
+  breaks
+  continue [HIT_ID]
+  help
+  quit
+"""
 
 
 def _record_callback(recorder: RunBundleRecorder, *, capture: bool) -> ProbeCallback:
@@ -113,6 +132,172 @@ def inspect(bundle: Annotated[Path, typer.Argument(exists=True, file_okay=False)
             "yes" if event.tensor_file else "no",
         )
     console.print(table)
+
+
+def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
+    parts = shlex.split(command)
+    if not parts:
+        return True
+    name, *arguments = parts
+    if name in {"quit", "exit"}:
+        return False
+    if name == "help":
+        console.print(_ATTACH_HELP)
+        return True
+
+    method: str
+    params: dict[str, Any] = {}
+    if name == "status":
+        method = "status"
+    elif name == "arm":
+        capture, hooks, request_ids = _parse_arm_arguments(arguments)
+        method, params = (
+            "arm",
+            {
+                "hooks": hooks,
+                "request_ids": request_ids,
+                "capture_tensors": capture,
+            },
+        )
+    elif name == "disarm":
+        method = "disarm"
+    elif name == "events":
+        method = "events"
+        if arguments:
+            params["after"] = int(arguments[0])
+    elif name == "clear":
+        method = "clear"
+    elif name == "patches":
+        method = "patch.list"
+    elif name == "patch-remove" and len(arguments) == 1:
+        method, params = "patch.remove", {"patch_id": arguments[0]}
+    elif name == "patch-set" and len(arguments) >= 3:
+        patch_id, hook, operation = arguments[:3]
+        value, request_ids = _parse_patch_arguments(operation, arguments[3:])
+        params = {
+            "patch_id": patch_id,
+            "hook": hook,
+            "operation": operation,
+            "request_ids": request_ids,
+        }
+        if value is not None:
+            params["value"] = value
+        method = "patch.set"
+    elif name == "break" and len(arguments) >= 2:
+        breakpoint_id, hook = arguments[:2]
+        request_ids, timeout = _parse_break_arguments(arguments[2:])
+        params = {
+            "breakpoint_id": breakpoint_id,
+            "hook": hook,
+            "request_ids": request_ids,
+            "timeout_seconds": timeout,
+        }
+        method = "break.set"
+    elif name == "delete" and len(arguments) == 1:
+        method, params = "break.remove", {"breakpoint_id": arguments[0]}
+    elif name == "breaks":
+        method = "break.list"
+    elif name == "continue" and len(arguments) <= 1:
+        method = "continue"
+        if arguments:
+            params["hit_id"] = arguments[0]
+    else:
+        raise ValueError(f"Invalid attach command: {command!r}. Type 'help' for usage.")
+
+    results = client.call(method, params)
+    console.print_json(data=results)
+    return True
+
+
+def _parse_arm_arguments(arguments: list[str]) -> tuple[bool, list[str], list[str]]:
+    capture = False
+    hooks: list[str] = []
+    request_ids: list[str] = []
+    index = 0
+    while index < len(arguments):
+        value = arguments[index]
+        if value == "--capture":
+            capture = True
+        elif value == "--request" and index + 1 < len(arguments):
+            index += 1
+            request_ids.append(arguments[index])
+        elif value.startswith("--"):
+            raise ValueError(f"Unknown arm option: {value}")
+        else:
+            hooks.append(value)
+        index += 1
+    return capture, hooks or ["*"], request_ids
+
+
+def _parse_patch_arguments(operation: str, arguments: list[str]) -> tuple[float | None, list[str]]:
+    value: float | None = None
+    request_ids: list[str] = []
+    index = 0
+    if operation in {"scale", "add"}:
+        if not arguments or arguments[0].startswith("--"):
+            raise ValueError(f"{operation} requires a numeric value")
+        value = float(arguments[0])
+        index = 1
+    while index < len(arguments):
+        if arguments[index] != "--request" or index + 1 >= len(arguments):
+            raise ValueError(f"Invalid patch option: {arguments[index]}")
+        index += 1
+        request_ids.append(arguments[index])
+        index += 1
+    return value, request_ids
+
+
+def _parse_break_arguments(arguments: list[str]) -> tuple[list[str], float]:
+    request_ids: list[str] = []
+    timeout = 300.0
+    index = 0
+    while index < len(arguments):
+        option = arguments[index]
+        if option not in {"--request", "--timeout"} or index + 1 >= len(arguments):
+            raise ValueError(f"Invalid breakpoint option: {option}")
+        index += 1
+        if option == "--request":
+            request_ids.append(arguments[index])
+        else:
+            timeout = float(arguments[index])
+        index += 1
+    return request_ids, timeout
+
+
+@app.command()
+def attach(
+    target: Annotated[
+        Path,
+        typer.Argument(exists=True, help="Agent socket or directory containing agent descriptors"),
+    ],
+    execute: Annotated[
+        str | None,
+        typer.Option("--execute", "-e", help="Execute one debugger command and exit"),
+    ] = None,
+) -> None:
+    """Attach to one or more live LDB runtime agents."""
+
+    client = AgentGroupClient.connect(target)
+    hello = client.call("hello")
+    console.print_json(data=hello)
+    if execute is not None:
+        _run_agent_command(client, execute)
+        return
+
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.history import InMemoryHistory
+
+    console.print("Type 'help' for commands.")
+    session: PromptSession[str] = PromptSession(history=InMemoryHistory())
+    while True:
+        try:
+            command = session.prompt("(ldb) ")
+            if not _run_agent_command(client, command):
+                return
+        except (EOFError, KeyboardInterrupt):
+            return
+        except (OSError, RuntimeError, ValueError) as exc:
+            console.print(f"[red]error:[/red] {exc}")
 
 
 @patch_app.command("validate")

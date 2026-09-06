@@ -34,6 +34,12 @@ dev = [
 [project.scripts]
 ldb = "ldb.cli:app"
 
+[project.entry-points."sglang.srt.plugins"]
+ldb = "ldb.adapters.sglang:register_plugin"
+
+[project.entry-points."vllm.general_plugins"]
+ldb = "ldb.adapters.vllm:register_plugin"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/ldb"]
 
