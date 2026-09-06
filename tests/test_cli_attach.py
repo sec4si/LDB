@@ -28,6 +28,28 @@ def test_attach_executes_command_against_live_agent(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_attach_lists_registered_hooks(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    agent.register_hook("block.0.residual.post")
+    agent.register_hook("block.1.residual.post")
+    try:
+        result = runner.invoke(
+            app,
+            ["attach", str(agent.socket_path), "-e", "hooks block.0.*"],
+        )
+        assert result.exit_code == 0
+        assert "block.0.residual.post" in result.stdout
+        assert "block.1.residual.post" not in result.stdout
+    finally:
+        agent.close()
+
+
 def test_parse_patch_arguments_supports_tensor_expert_and_request() -> None:
     parsed = _parse_patch_arguments(["-0.25", "--expert", "7", "--request", "request-a"])
     assert parsed.value == -0.25

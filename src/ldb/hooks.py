@@ -96,12 +96,14 @@ def install_model_runtime(
         prefix = f"{block_path}.{index}"
         block = module_by_path[prefix]
         _prepare_graph_hook(agent, f"block.{index}.residual.pre", block)
+        pre_hook = f"block.{index}.residual.pre"
         agent.add_handle(
-            block.register_forward_pre_hook(_make_pre_hook(agent, f"block.{index}.residual.pre"))
+            block.register_forward_pre_hook(_make_pre_hook(agent, pre_hook)), hook=pre_hook
         )
         _prepare_graph_hook(agent, f"block.{index}.residual.post", block)
+        post_hook = f"block.{index}.residual.post"
         agent.add_handle(
-            block.register_forward_hook(_make_post_hook(agent, f"block.{index}.residual.post"))
+            block.register_forward_hook(_make_post_hook(agent, post_hook)), hook=post_hook
         )
         _install_first_post_hook(
             agent,
@@ -151,6 +153,7 @@ def sglang_forward_hook_factory(config: dict[str, Any]) -> Any:
         model_id=str(config.get("model_id", "unknown")),
         config=config,
     )
+    agent.register_hook(hook_name)
 
     def hook(_: Any, __: tuple[Any, ...], output: Any) -> Any:
         return _process_output(agent, hook_name, output)
@@ -237,9 +240,8 @@ def _install_first_post_hook(
         module = module_by_path.get(f"{prefix}.{suffix}")
         if module is not None:
             _prepare_graph_hook(agent, f"block.{index}.{normalized}", module)
-            agent.add_handle(
-                module.register_forward_hook(_make_post_hook(agent, f"block.{index}.{normalized}"))
-            )
+            hook = f"block.{index}.{normalized}"
+            agent.add_handle(module.register_forward_hook(_make_post_hook(agent, hook)), hook=hook)
             return
 
 
@@ -256,7 +258,9 @@ def _install_first_pre_hook(
         if module is not None:
             hook = f"block.{index}.{normalized}"
             _prepare_graph_hook(agent, hook, module)
-            agent.add_handle(module.register_forward_pre_hook(_make_pre_hook(agent, hook)))
+            agent.add_handle(
+                module.register_forward_pre_hook(_make_pre_hook(agent, hook)), hook=hook
+            )
             return
 
 
@@ -280,7 +284,7 @@ def _install_expert_hooks(
         module = module_by_path[f"{experts_path}.{expert}"]
         hook = f"block.{index}.moe.expert.{expert}.output"
         _prepare_graph_hook(agent, hook, module)
-        agent.add_handle(module.register_forward_hook(_make_post_hook(agent, hook)))
+        agent.add_handle(module.register_forward_hook(_make_post_hook(agent, hook)), hook=hook)
 
 
 def _floating_parameter(module: Any) -> Any:

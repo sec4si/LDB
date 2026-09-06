@@ -93,6 +93,32 @@ def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_group_validates_hooks_across_pipeline_ranks(tmp_path: Path) -> None:
+    agents = tuple(
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=rank,
+            world_size=2,
+        ).start()
+        for rank in range(2)
+    )
+    agents[0].register_hook("block.0.residual.post")
+    agents[1].register_hook("block.1.residual.post")
+    group = AgentGroupClient(tuple(AgentClient(agent.socket_path) for agent in agents))
+    try:
+        group.call("arm", {"hooks": ["block.1.*"]})
+        assert all(result["armed"] for result in group.call("status"))
+        with pytest.raises(ValueError, match="across attached ranks"):
+            group.call("arm", {"hooks": ["block.99.*"]})
+    finally:
+        for agent in agents:
+            agent.close()
+
+
 def test_agent_replaces_activation_from_safetensors(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

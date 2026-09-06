@@ -78,6 +78,13 @@ def test_installed_model_runtime_uses_normalized_hooks(tmp_path: Path) -> None:
     )
     try:
         client = AgentClient(agent.socket_path)
+        available = set(client.call("hooks"))
+        assert available == {
+            "block.0.residual.pre",
+            "block.0.attention.output",
+            "block.0.mlp.output",
+            "block.0.residual.post",
+        }
         client.call("arm", {"hooks": ["block.0.*"], "capture_tensors": False})
         model(torch.ones(1, 2))
         hooks = {event["hook"] for event in client.call("events")}
@@ -87,6 +94,37 @@ def test_installed_model_runtime_uses_normalized_hooks(tmp_path: Path) -> None:
             "block.0.mlp.output",
             "block.0.residual.post",
         }
+    finally:
+        close_agents()
+
+
+def test_installed_runtime_rejects_unknown_hook_patterns(tmp_path: Path) -> None:
+    model = Model()
+    agent = install_model_runtime(
+        model,
+        backend="test-hook-validation",
+        backend_version="1",
+        model_id="test-model",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        with pytest.raises(RuntimeError, match="matches no installed hooks"):
+            client.call("arm", {"hooks": ["block.99.*"]})
+        with pytest.raises(RuntimeError, match="matches no installed hooks"):
+            client.call(
+                "patch.set",
+                {
+                    "patch_id": "missing",
+                    "hook": "block.99.residual.post",
+                    "operation": "ablate",
+                },
+            )
+        with pytest.raises(RuntimeError, match="matches no installed hooks"):
+            client.call(
+                "break.set",
+                {"breakpoint_id": "missing", "hook": "block.99.residual.post"},
+            )
     finally:
         close_agents()
 

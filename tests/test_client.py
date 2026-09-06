@@ -53,6 +53,8 @@ class StatefulArmClient:
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         self.calls.append(method)
+        if method == "hooks":
+            return []
         if method == "status":
             return {"arm": self.arm}
         if method == "arm":
@@ -108,5 +110,5 @@ def test_group_restores_arm_configuration_after_rank_failure() -> None:
 
     assert first.arm == previous
     assert second.arm == previous
-    assert first.calls == ["status", "arm", "arm"]
-    assert second.calls == ["status", "arm"]
+    assert first.calls == ["hooks", "status", "arm", "arm"]
+    assert second.calls == ["hooks", "status", "arm"]

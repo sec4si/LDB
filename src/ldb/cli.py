@@ -38,6 +38,7 @@ console = Console()
 
 _ATTACH_HELP = """Commands:
   status
+  hooks [HOOK_GLOB]
   arm [--capture] [--request REQUEST_ID] [HOOK_GLOB ...]
   disarm
   events [AFTER_SEQUENCE]
@@ -428,6 +429,10 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
     params: dict[str, Any] = {}
     if name == "status":
         method = "status"
+    elif name == "hooks" and len(arguments) <= 1:
+        method = "hooks"
+        if arguments:
+            params["pattern"] = arguments[0]
     elif name == "arm":
         capture, hooks, request_ids = _parse_arm_arguments(arguments)
         method, params = (

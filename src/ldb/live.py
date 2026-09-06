@@ -14,6 +14,7 @@ AGENT_PROTOCOL_VERSION = "ldb.agent/v1alpha1"
 
 
 class AgentCapability(StrEnum):
+    HOOK_DISCOVERY = "hooks.discovery"
     TRACE_SUMMARY = "trace.summary"
     TRACE_TENSOR = "trace.tensor"
     PATCH_ACTIVATION = "patch.activation"

@@ -31,6 +31,7 @@ one bounded JSON object followed by a newline. Supported methods are:
 |---|---|
 | `hello` | Negotiate protocol, backend, topology, and capabilities. |
 | `status` | Read arm state, event count, run ID, and active patches. |
+| `hooks` | List installed normalized hooks, optionally filtered by a glob. |
 | `arm` | Select hook globs and optionally enable full tensor persistence. |
 | `disarm` | Stop trace recording without unloading probes. |
 | `events` | Read bounded trace events after a sequence number. |
@@ -76,6 +77,10 @@ mutation and restore successful ranks if another rank fails.
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control
 socket.
+
+For prepared model runtimes, `arm`, `patch.set`, and `break.set` reject every hook
+glob that matches no installed hook. Use `hooks` before setting controls instead of
+discovering misspellings after a silent no-op.
 
 ## Runtime integration
 

@@ -117,6 +117,7 @@ class AgentRuntime:
         self._server: _ThreadingUnixServer | None = None
         self._thread: threading.Thread | None = None
         self._handles: list[Any] = []
+        self._hook_names: set[str] = set()
         self._run_id = uuid.uuid4().hex
 
         backend_id = hashlib.sha256(backend.encode()).hexdigest()[:8]
@@ -128,6 +129,7 @@ class AgentRuntime:
     @property
     def descriptor(self) -> AgentDescriptor:
         capabilities = [
+            AgentCapability.HOOK_DISCOVERY,
             AgentCapability.TRACE_SUMMARY,
             AgentCapability.TRACE_TENSOR,
             AgentCapability.PATCH_ACTIVATION,
@@ -190,8 +192,14 @@ class AgentRuntime:
         self._server = None
         self._thread = None
 
-    def add_handle(self, handle: Any) -> None:
+    def add_handle(self, handle: Any, *, hook: str | None = None) -> None:
         self._handles.append(handle)
+        if hook is not None:
+            self.register_hook(hook)
+
+    def register_hook(self, hook: str) -> None:
+        with self._lock:
+            self._hook_names.add(hook)
 
     def prepare_graph_hook(self, hook: str, reference: Any) -> None:
         if not self.graph_control:
@@ -218,8 +226,15 @@ class AgentRuntime:
                     "stopped": [hit.model_dump(mode="json") for hit in self._stopped.values()],
                     "run_id": self._run_id,
                 }
+        if method == "hooks":
+            pattern = str(params.get("pattern", "*"))
+            with self._lock:
+                return sorted(
+                    hook for hook in self._hook_names if fnmatch.fnmatchcase(hook, pattern)
+                )
         if method == "arm":
             arm = ArmConfig.model_validate(params)
+            self._require_matching_hooks(arm.hooks)
             with self._lock:
                 self._arm = arm
             return arm.model_dump(mode="json")
@@ -238,6 +253,7 @@ class AgentRuntime:
             return {"event_count": 0}
         if method == "patch.set":
             patch = LiveIntervention.model_validate(params)
+            self._require_matching_hooks((patch.hook,))
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             _validate_live_patch(patch)
@@ -271,6 +287,7 @@ class AgentRuntime:
                 return [patch.model_dump(mode="json") for patch in self._patches.values()]
         if method == "break.set":
             breakpoint = LiveBreakpoint.model_validate(params)
+            self._require_matching_hooks((breakpoint.hook,))
             if breakpoint.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             with self._lock:
@@ -297,6 +314,21 @@ class AgentRuntime:
                 self._condition.notify_all()
             return {"released": released}
         raise ValueError(f"Unknown agent method: {method}")
+
+    def _require_matching_hooks(self, patterns: tuple[str, ...]) -> None:
+        if self.world_size > 1:
+            return
+        with self._lock:
+            hooks = tuple(self._hook_names)
+        if not hooks:
+            return
+        missing = [
+            pattern
+            for pattern in patterns
+            if not any(fnmatch.fnmatchcase(hook, pattern) for hook in hooks)
+        ]
+        if missing:
+            raise ValueError(f"Hook pattern matches no installed hooks: {', '.join(missing)}")
 
     def process_tensor(self, hook: str, tensor: Any) -> Any:
         context = current_batch_context()

@@ -108,6 +108,7 @@ Attach from another terminal:
 ldb attach /tmp/ldb-$(id -u)/agents
 
 (ldb) arm 'block.10.*'
+(ldb) hooks 'block.10.*'
 (ldb) events
 (ldb) break stop-10 'block.10.residual.post' --timeout 60
 (ldb) status

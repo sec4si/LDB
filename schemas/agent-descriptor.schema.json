@@ -2,6 +2,7 @@
   "$defs": {
     "AgentCapability": {
       "enum": [
+        "hooks.discovery",
         "trace.summary",
         "trace.tensor",
         "patch.activation",

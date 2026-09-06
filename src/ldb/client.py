@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import socket
 import uuid
@@ -66,6 +67,7 @@ class AgentGroupClient:
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> list[Any]:
         values = params or {}
+        self._validate_hook_patterns(method, values)
         rollbacks = self._prepare_rollbacks(method, values)
         results: list[Any] = []
         errors: list[str] = []
@@ -83,6 +85,30 @@ class AgentGroupClient:
                 detail += "; rollback failed: " + "; ".join(rollback_errors)
             raise RuntimeError(detail)
         return results
+
+    def _validate_hook_patterns(self, method: str, params: dict[str, Any]) -> None:
+        if method == "arm":
+            patterns = tuple(str(value) for value in params.get("hooks", ()))
+        elif method in {"patch.set", "break.set"} and "hook" in params:
+            patterns = (str(params["hook"]),)
+        else:
+            return
+        try:
+            available = {str(hook) for client in self.clients for hook in client.call("hooks")}
+        except Exception as exc:
+            raise RuntimeError(f"Agent group hook preflight failed: {exc}") from exc
+        if not available:
+            return
+        missing = [
+            pattern
+            for pattern in patterns
+            if not any(fnmatch.fnmatchcase(hook, pattern) for hook in available)
+        ]
+        if missing:
+            raise ValueError(
+                "Hook pattern matches no installed hooks across attached ranks: "
+                + ", ".join(missing)
+            )
 
     def _prepare_rollbacks(self, method: str, params: dict[str, Any]) -> list[Rollback]:
         if method == "patch.set":
