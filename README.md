@@ -121,9 +121,10 @@ ldb attach /tmp/ldb-$(id -u)/agents
 (ldb) disarm
 ```
 
-The agent socket and descriptor files are user-owned and use `0600` permissions.
-The parent directory uses `0700`. Full tensor capture is synchronous and intended
-for isolated debugging requests, not normal production traffic.
+The agent socket, descriptor, and captured tensor files are user-owned and use
+`0600` permissions. Socket and live-output directories use `0700`. Full tensor
+capture is synchronous and intended for isolated debugging requests, not normal
+production traffic.
 
 ## Design principles
 

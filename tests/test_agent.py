@@ -45,7 +45,11 @@ def test_live_agent_trace_and_patch(tmp_path: Path) -> None:
         events = client.call("events")
         assert events[0]["patch_ids"] == ["scale-1"]
         assert events[0]["summary"]["norm"] == pytest.approx(4.472136)
-        assert Path(events[0]["tensor_file"]).is_file()
+        tensor_path = Path(events[0]["tensor_file"])
+        assert tensor_path.is_file()
+        assert stat.S_IMODE(agent.output_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(agent.tensor_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(tensor_path.stat().st_mode) == 0o600
     finally:
         agent.close()
 
@@ -337,6 +341,7 @@ def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
         assert inspection["hit"]["summary"]["mean"] == 2.0
         captured = load_file(inspection["tensor_file"])["activation"]
         assert captured.tolist() == [2.0]
+        assert stat.S_IMODE(Path(inspection["tensor_file"]).stat().st_mode) == 0o600
 
         client.call(
             "patch.set",

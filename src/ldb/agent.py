@@ -167,7 +167,7 @@ class AgentRuntime:
             return self
         _prepare_private_directory(self.socket_dir)
         _prepare_private_directory(self.socket_path.parent)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        _prepare_private_directory(self.output_dir)
         _remove_owned_path(self.socket_path, socket_only=True)
         server = _ThreadingUnixServer(str(self.socket_path), self)
         os.chmod(self.socket_path, 0o600)
@@ -530,15 +530,17 @@ class AgentRuntime:
             slot.update(scale=scale, bias=bias)
 
     def _capture_tensor(self, sequence: int, tensor: Any) -> str:
-        self.tensor_dir.mkdir(parents=True, exist_ok=True)
+        _prepare_private_directory(self.tensor_dir)
         path = self.tensor_dir / f"{sequence:08d}.safetensors"
         save_file({"activation": tensor.detach().contiguous().cpu()}, path)
+        os.chmod(path, 0o600)
         return str(path)
 
     def _capture_breakpoint_tensor(self, hit_id: str, tensor: Any) -> str:
-        self.tensor_dir.mkdir(parents=True, exist_ok=True)
+        _prepare_private_directory(self.tensor_dir)
         path = self.tensor_dir / f"breakpoint-{hit_id}.safetensors"
         save_file({"activation": tensor.detach().contiguous().cpu()}, path)
+        os.chmod(path, 0o600)
         return str(path)
 
     def _stop_at_breakpoint(
