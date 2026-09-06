@@ -53,17 +53,28 @@ class AgentGroupClient:
         if not target.is_dir():
             raise ValueError(f"Agent target is not a socket or directory: {target}")
 
-        descriptors: list[AgentDescriptor] = []
+        connected: list[tuple[AgentDescriptor, AgentClient]] = []
         for path in sorted(target.glob("*.json")):
             try:
-                descriptor = AgentDescriptor.model_validate_json(path.read_text(encoding="utf-8"))
+                advertised = AgentDescriptor.model_validate_json(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if Path(descriptor.socket_path).is_socket():
-                descriptors.append(descriptor)
-        if not descriptors:
+            socket_path = Path(advertised.socket_path)
+            if not socket_path.is_socket():
+                continue
+            client = AgentClient(socket_path)
+            try:
+                descriptor = AgentDescriptor.model_validate(client.call("hello"))
+            except Exception as exc:
+                raise RuntimeError(f"Agent handshake failed for {socket_path}: {exc}") from exc
+            if descriptor.socket_path != advertised.socket_path:
+                raise RuntimeError(f"Agent descriptor does not match its live socket: {path}")
+            connected.append((descriptor, client))
+        if not connected:
             raise ValueError(f"No live LDB agents found in {target}")
-        return cls(tuple(AgentClient(Path(item.socket_path)) for item in descriptors))
+        _validate_agent_group(tuple(descriptor for descriptor, _ in connected))
+        connected.sort(key=lambda item: item[0].rank)
+        return cls(tuple(client for _, client in connected))
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> list[Any]:
         values = params or {}
@@ -171,6 +182,39 @@ def _read_line(connection: socket.socket, *, limit: int = 16 * 1024 * 1024) -> b
         size += len(chunk)
         if size > limit:
             raise ValueError("Agent response exceeds the protocol size limit")
+
+
+def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
+    identity_fields = (
+        "backend",
+        "model_id",
+        "model_revision",
+        "tokenizer_hash",
+        "world_size",
+    )
+    mismatched = [
+        field
+        for field in identity_fields
+        if len({getattr(descriptor, field) for descriptor in descriptors}) != 1
+    ]
+    if mismatched:
+        raise ValueError(
+            "Agent directory contains incompatible runtimes: " + ", ".join(mismatched)
+        )
+
+    ranks = tuple(descriptor.rank for descriptor in descriptors)
+    if len(set(ranks)) != len(ranks):
+        raise ValueError("Agent directory contains duplicate distributed ranks")
+    world_size = descriptors[0].world_size
+    expected = set(range(world_size))
+    actual = set(ranks)
+    if actual != expected:
+        missing = ", ".join(str(rank) for rank in sorted(expected - actual)) or "none"
+        unexpected = ", ".join(str(rank) for rank in sorted(actual - expected)) or "none"
+        raise ValueError(
+            "Agent directory is not a complete distributed runtime: "
+            f"missing ranks {missing}; unexpected ranks {unexpected}"
+        )
 
 
 def format_json(value: Any) -> str:

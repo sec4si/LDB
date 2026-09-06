@@ -79,6 +79,13 @@ Patch and breakpoint IDs are immutable while installed. Remove an existing ID
 before reusing it. Reversible multi-rank commands snapshot prior state before
 mutation and restore successful ranks if another rank fails.
 
+When attaching to an agent directory, LDB performs a live handshake, requires one
+coherent backend/model identity, rejects duplicate ranks, and requires the complete
+`0..world_size-1` rank set before issuing commands. The Unix-socket control plane is
+therefore single-host in v0.1; a distributed deployment spanning hosts must expose
+all workers through a deliberately colocated control plane before group attachment
+is safe.
+
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control
 socket.

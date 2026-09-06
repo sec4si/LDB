@@ -97,6 +97,75 @@ def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_group_requires_every_distributed_rank(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        rank=0,
+        world_size=2,
+    ).start()
+    try:
+        with pytest.raises(ValueError, match="missing ranks 1"):
+            AgentGroupClient.connect(tmp_path / "agents")
+    finally:
+        agent.close()
+
+
+def test_agent_group_rejects_incompatible_live_runtimes(tmp_path: Path) -> None:
+    agents = (
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="model-a",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=0,
+            world_size=2,
+        ).start(),
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="model-b",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=1,
+            world_size=2,
+        ).start(),
+    )
+    try:
+        with pytest.raises(ValueError, match="incompatible runtimes: model_id"):
+            AgentGroupClient.connect(tmp_path / "agents")
+    finally:
+        for agent in agents:
+            agent.close()
+
+
+def test_agent_group_connects_complete_distributed_runtime_in_rank_order(
+    tmp_path: Path,
+) -> None:
+    agents = tuple(
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=rank,
+            world_size=2,
+        ).start()
+        for rank in reversed(range(2))
+    )
+    try:
+        group = AgentGroupClient.connect(tmp_path / "agents")
+        assert [result["descriptor"]["rank"] for result in group.call("status")] == [0, 1]
+    finally:
+        for agent in agents:
+            agent.close()
+
+
 def test_agent_rejects_symlinked_private_directory(tmp_path: Path) -> None:
     actual = tmp_path / "actual"
     actual.mkdir()
