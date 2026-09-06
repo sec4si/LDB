@@ -97,6 +97,23 @@ def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_rejects_symlinked_private_directory(tmp_path: Path) -> None:
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    agents = tmp_path / "agents"
+    agents.symlink_to(actual, target_is_directory=True)
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=agents,
+        output_dir=tmp_path / "runs",
+    )
+
+    with pytest.raises(PermissionError, match="symbolic link"):
+        agent.start()
+
+
 def test_group_validates_hooks_across_pipeline_ranks(tmp_path: Path) -> None:
     agents = tuple(
         AgentRuntime(

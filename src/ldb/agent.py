@@ -583,9 +583,11 @@ def _socket_path(directory: Path, identity: str) -> Path:
 
 def _prepare_private_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    metadata = path.stat()
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode):
+        raise PermissionError(f"Refusing to use a symbolic link as an LDB directory: {path}")
     if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
-        raise PermissionError(f"LDB agent directory is not owned by the current user: {path}")
+        raise PermissionError(f"LDB directory is not owned by the current user: {path}")
     os.chmod(path, 0o700)
 
 
