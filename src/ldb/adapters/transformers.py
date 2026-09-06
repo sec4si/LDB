@@ -1,0 +1,144 @@
+"""Hugging Face eager-mode runtime adapter."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from importlib.metadata import version
+from typing import Any, cast
+
+from ldb.models import HookPhase, HookPoint
+from ldb.runtime import ProbeCallback, ProbeHandle
+
+
+def _first_tensor(value: Any) -> Any:
+    import torch
+
+    if isinstance(value, torch.Tensor):
+        return value
+    if isinstance(value, (tuple, list)):
+        for item in value:
+            tensor = _first_tensor(item)
+            if tensor is not None:
+                return tensor
+    return None
+
+
+class TransformersAdapter:
+    """Normalize common decoder-only Hugging Face model topologies."""
+
+    adapter_version = "0.1.0.dev0"
+
+    def __init__(self, model_id: str, *, revision: str | None = None, device: str = "cpu") -> None:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        self._model_id = model_id
+        self.revision = revision
+        self.device = device
+        tokenizer_factory = cast(Any, AutoTokenizer)
+        model_factory = cast(Any, AutoModelForCausalLM)
+        self.tokenizer: Any = tokenizer_factory.from_pretrained(model_id, revision=revision)
+        self.model: Any = model_factory.from_pretrained(model_id, revision=revision)
+        self.model.to(device)
+        self.model.eval()
+        self._module_by_path = dict(self.model.named_modules())
+        self._hooks = self._discover_hooks()
+
+    @property
+    def model_id(self) -> str:
+        return self._model_id
+
+    @property
+    def backend_version(self) -> str:
+        return version("transformers")
+
+    def _block_path(self) -> str:
+        candidates = ("transformer.h", "model.layers", "model.model.layers")
+        for path in candidates:
+            module = self._module_by_path.get(path)
+            if module is not None and hasattr(module, "__len__"):
+                return path
+        raise ValueError(
+            "Unsupported model topology: expected transformer.h, model.layers, "
+            "or model.model.layers"
+        )
+
+    def _discover_hooks(self) -> tuple[HookPoint, ...]:
+        block_path = self._block_path()
+        blocks = self._module_by_path[block_path]
+        hooks: list[HookPoint] = []
+        for index in range(len(blocks)):
+            prefix = f"{block_path}.{index}"
+            hooks.extend(
+                (
+                    HookPoint(
+                        name=f"block.{index}.residual.pre",
+                        module_path=prefix,
+                        phase=HookPhase.PRE,
+                    ),
+                    HookPoint(
+                        name=f"block.{index}.residual.post",
+                        module_path=prefix,
+                        phase=HookPhase.POST,
+                    ),
+                )
+            )
+            for normalized, attributes in (
+                ("attention.output", ("self_attn", "attn")),
+                ("mlp.output", ("mlp",)),
+            ):
+                module_path = next(
+                    (
+                        f"{prefix}.{attribute}"
+                        for attribute in attributes
+                        if f"{prefix}.{attribute}" in self._module_by_path
+                    ),
+                    None,
+                )
+                if module_path:
+                    hooks.append(
+                        HookPoint(
+                            name=f"block.{index}.{normalized}",
+                            module_path=module_path,
+                            phase=HookPhase.POST,
+                        )
+                    )
+        return tuple(hooks)
+
+    def hook_points(self) -> Sequence[HookPoint]:
+        return self._hooks
+
+    def install_probe(self, hook: HookPoint, callback: ProbeCallback) -> ProbeHandle:
+        module = self._module_by_path[hook.module_path]
+
+        if hook.phase is HookPhase.PRE:
+
+            def pre_hook(_: Any, inputs: tuple[Any, ...]) -> None:
+                tensor = _first_tensor(inputs)
+                if tensor is not None:
+                    callback(hook, tensor)
+
+            return cast(ProbeHandle, module.register_forward_pre_hook(pre_hook))
+
+        def post_hook(_: Any, __: tuple[Any, ...], output: Any) -> None:
+            tensor = _first_tensor(output)
+            if tensor is not None:
+                callback(hook, tensor)
+
+        return cast(ProbeHandle, module.register_forward_hook(post_hook))
+
+    def tokenize(self, prompt: str) -> Sequence[int]:
+        encoded = self.tokenizer(prompt, return_tensors="pt")
+        return tuple(int(token) for token in encoded["input_ids"][0])
+
+    def generate(self, prompt: str, *, max_new_tokens: int) -> str:
+        import torch
+
+        encoded = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        with torch.inference_mode():
+            output = self.model.generate(
+                **encoded,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id,
+            )
+        return str(self.tokenizer.decode(output[0], skip_special_tokens=True))

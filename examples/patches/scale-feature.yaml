@@ -1,0 +1,14 @@
+schema_version: ldb.patch/v1alpha1
+patch_id: ldb-example-0001
+description: Scale a hypothetical latent feature for one request.
+model_id: google/gemma-3-1b-it
+model_revision: example-revision
+tokenizer_hash: example-tokenizer-hash
+adapter: ldb.adapters.transformers
+hook_schema_version: ldb.hooks/v1alpha1
+interventions:
+  - hook: block.17.residual.post
+    operation: scale
+    value: 0.71
+    request_scoped: true
+evidence: observed

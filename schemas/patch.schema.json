@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "EvidenceLevel": {
+      "enum": [
+        "observed",
+        "correlated",
+        "attributed",
+        "causally_tested",
+        "replicated"
+      ],
+      "title": "EvidenceLevel",
+      "type": "string"
+    },
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "tensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "hook",
+        "operation"
+      ],
+      "title": "Intervention",
+      "type": "object"
+    },
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    },
+    "ValidationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "target_success": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Target Success",
+          "type": "number"
+        },
+        "related_generalization": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Generalization"
+        },
+        "unrelated_regression": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unrelated Regression"
+        }
+      },
+      "required": [
+        "target_success"
+      ],
+      "title": "ValidationSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "ldb.patch/v1alpha1",
+      "default": "ldb.patch/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "title": "Model Revision",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    },
+    "adapter": {
+      "title": "Adapter",
+      "type": "string"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha1",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "interventions": {
+      "items": {
+        "$ref": "#/$defs/Intervention"
+      },
+      "minItems": 1,
+      "title": "Interventions",
+      "type": "array"
+    },
+    "validation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValidationSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "evidence": {
+      "$ref": "#/$defs/EvidenceLevel",
+      "default": "observed"
+    }
+  },
+  "required": [
+    "patch_id",
+    "description",
+    "model_id",
+    "model_revision",
+    "tokenizer_hash",
+    "adapter",
+    "interventions"
+  ],
+  "title": "NeuralPatch",
+  "type": "object"
+}
