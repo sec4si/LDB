@@ -7,6 +7,26 @@
           "title": "Activation Recovery",
           "type": "number"
         },
+        "mediated_effect": {
+          "title": "Mediated Effect",
+          "type": "number"
+        },
+        "mediated_log_probability": {
+          "title": "Mediated Log Probability",
+          "type": "number"
+        },
+        "mediated_recovery": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mediated Recovery"
+        },
         "source": {
           "title": "Source",
           "type": "string"
@@ -19,7 +39,9 @@
       "required": [
         "source",
         "target",
-        "activation_recovery"
+        "activation_recovery",
+        "mediated_log_probability",
+        "mediated_effect"
       ],
       "title": "CausalEdge",
       "type": "object"
@@ -104,6 +126,15 @@
       "title": "Hook Schema Version",
       "type": "string"
     },
+    "max_path_trials": {
+      "exclusiveMinimum": 0,
+      "title": "Max Path Trials",
+      "type": "integer"
+    },
+    "minimum_recovery": {
+      "title": "Minimum Recovery",
+      "type": "number"
+    },
     "model_id": {
       "title": "Model Id",
       "type": "string"
@@ -155,6 +186,8 @@
     "clean_prompt",
     "corrupt_prompt",
     "target_token_id",
+    "minimum_recovery",
+    "max_path_trials",
     "clean_log_probability",
     "corrupt_log_probability",
     "nodes",

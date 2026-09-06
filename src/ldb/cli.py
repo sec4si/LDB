@@ -313,6 +313,7 @@ def causal_graph(
         typer.Option("--hook", help="Glob selecting causal graph nodes"),
     ] = None,
     minimum_recovery: Annotated[float, typer.Option("--minimum-recovery", min=0.0)] = 0.01,
+    max_path_trials: Annotated[int, typer.Option("--max-path-trials", min=1)] = 256,
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
@@ -330,14 +331,21 @@ def causal_graph(
         token_index=token_index,
         hook_globs=hook or ["block.*.residual.post"],
         minimum_recovery=minimum_recovery,
+        max_path_trials=max_path_trials,
     )
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
-    table = Table("Source", "Target", "Activation recovery")
+    table = Table("Source", "Target", "State recovery", "Output effect", "Output recovery")
     for edge in report.edges:
-        table.add_row(edge.source, edge.target, f"{edge.activation_recovery:+.2%}")
+        table.add_row(
+            edge.source,
+            edge.target,
+            f"{edge.activation_recovery:+.2%}",
+            f"{edge.mediated_effect:+.6g}",
+            f"{edge.mediated_recovery:+.2%}" if edge.mediated_recovery is not None else "-",
+        )
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")

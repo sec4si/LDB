@@ -71,6 +71,9 @@ class CausalEdge(FrozenModel):
     source: str
     target: str
     activation_recovery: float
+    mediated_log_probability: float
+    mediated_effect: float
+    mediated_recovery: float | None = None
 
 
 class CausalGraphReport(FrozenModel):
@@ -86,6 +89,8 @@ class CausalGraphReport(FrozenModel):
     corrupt_prompt: str
     target_token_id: int = Field(ge=0)
     token_index: int = -1
+    minimum_recovery: float
+    max_path_trials: int = Field(gt=0)
     clean_log_probability: float
     corrupt_log_probability: float
     nodes: tuple[CausalTrial, ...]
@@ -258,8 +263,14 @@ def causal_propagation_graph(
     token_index: int = -1,
     hook_globs: Sequence[str] = ("block.*.residual.post",),
     minimum_recovery: float = 0.01,
+    max_path_trials: int = 256,
 ) -> CausalGraphReport:
-    """Measure directed downstream activation recovery after clean source patching."""
+    """Measure activation propagation and output mediation along candidate paths."""
+
+    if minimum_recovery < 0.0:
+        raise ValueError("Minimum recovery must be non-negative")
+    if max_path_trials <= 0:
+        raise ValueError("Maximum path trials must be positive")
 
     hooks = tuple(
         hook
@@ -279,7 +290,7 @@ def causal_propagation_graph(
 
     denominator = clean_score - corrupt_score
     nodes: list[CausalTrial] = []
-    edges: list[CausalEdge] = []
+    candidate_paths: list[tuple[str, str, float, Any]] = []
     hook_by_name = {hook.name: hook for hook in hooks}
     for source_index, source_name in enumerate(clean_order):
         source = hook_by_name[source_name]
@@ -310,16 +321,45 @@ def causal_propagation_graph(
                 clean[target_name], corrupt[target_name], patched[target_name]
             )
             if abs(recovery) >= minimum_recovery:
-                edges.append(
-                    CausalEdge(
-                        source=source_name,
-                        target=target_name,
-                        activation_recovery=recovery,
-                    )
+                candidate_paths.append(
+                    (source_name, target_name, recovery, patched[target_name])
                 )
 
+    candidate_paths.sort(key=lambda candidate: abs(candidate[2]), reverse=True)
+    if len(candidate_paths) > max_path_trials:
+        raise ValueError(
+            f"Causal graph produced {len(candidate_paths)} path trials; "
+            f"limit is {max_path_trials}"
+        )
+
+    edges: list[CausalEdge] = []
+    for source_name, target_name, activation_recovery, mediated_activation in candidate_paths:
+        target = hook_by_name[target_name]
+
+        def mediate(_: HookPoint, tensor: Any, value: Any = mediated_activation) -> Any:
+            return _replace_token(tensor, value, token_index)
+
+        handle = runtime.install_intervention(target, mediate)
+        try:
+            mediated_score = runtime.next_token_log_probability(
+                corrupt_prompt, target_token_id
+            )
+        finally:
+            handle.remove()
+        effect = mediated_score - corrupt_score
+        edges.append(
+            CausalEdge(
+                source=source_name,
+                target=target_name,
+                activation_recovery=activation_recovery,
+                mediated_log_probability=mediated_score,
+                mediated_effect=effect,
+                mediated_recovery=effect / denominator if denominator != 0.0 else None,
+            )
+        )
+
     nodes.sort(key=lambda trial: trial.effect, reverse=True)
-    edges.sort(key=lambda edge: abs(edge.activation_recovery), reverse=True)
+    edges.sort(key=lambda edge: abs(edge.mediated_effect), reverse=True)
     return CausalGraphReport(
         model_id=runtime.model_id,
         model_revision=runtime.revision,
@@ -330,6 +370,8 @@ def causal_propagation_graph(
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
         token_index=token_index,
+        minimum_recovery=minimum_recovery,
+        max_path_trials=max_path_trials,
         clean_log_probability=clean_score,
         corrupt_log_probability=corrupt_score,
         nodes=tuple(nodes),
