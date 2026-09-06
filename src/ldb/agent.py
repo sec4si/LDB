@@ -27,6 +27,7 @@ from ldb.live import (
     AgentResponse,
     ArmConfig,
     BreakpointHit,
+    BreakpointInspection,
     LiveBreakpoint,
     LiveIntervention,
     LiveTraceEvent,
@@ -110,6 +111,7 @@ class AgentRuntime:
         self._graph_slots: dict[str, GraphControlSlot] = {}
         self._breakpoints: dict[str, LiveBreakpoint] = {}
         self._stopped: dict[str, BreakpointHit] = {}
+        self._stopped_tensors: dict[str, Any] = {}
         self._arm = ArmConfig(hooks=())
         self._sequence = 0
         self._lock = threading.RLock()
@@ -134,6 +136,7 @@ class AgentRuntime:
             AgentCapability.TRACE_TENSOR,
             AgentCapability.PATCH_ACTIVATION,
             AgentCapability.BREAKPOINT_BATCH,
+            AgentCapability.BREAKPOINT_INSPECT,
             AgentCapability.EAGER_ONLY,
         ]
         if self.request_context:
@@ -179,6 +182,7 @@ class AgentRuntime:
     def close(self) -> None:
         with self._condition:
             self._stopped.clear()
+            self._stopped_tensors.clear()
             self._condition.notify_all()
         server = self._server
         if server is not None:
@@ -303,14 +307,28 @@ class AgentRuntime:
         if method == "break.list":
             with self._lock:
                 return [item.model_dump(mode="json") for item in self._breakpoints.values()]
-        if method == "continue":
-            hit_id = str(params["hit_id"]) if "hit_id" in params else None
+        if method == "break.inspect":
+            inspect_hit_id = str(params["hit_id"])
+            capture = bool(params.get("capture", False))
             with self._lock:
-                if hit_id is None:
+                hit = self._stopped.get(inspect_hit_id)
+                tensor = self._stopped_tensors.get(inspect_hit_id)
+                tensor_file = (
+                    self._capture_breakpoint_tensor(inspect_hit_id, tensor)
+                    if hit is not None and tensor is not None and capture
+                    else None
+                )
+            return BreakpointInspection(hit=hit, tensor_file=tensor_file).model_dump(mode="json")
+        if method == "continue":
+            continue_hit_id = str(params["hit_id"]) if "hit_id" in params else None
+            with self._lock:
+                if continue_hit_id is None:
                     released = len(self._stopped)
                     self._stopped.clear()
+                    self._stopped_tensors.clear()
                 else:
-                    released = int(self._stopped.pop(hit_id, None) is not None)
+                    released = int(self._stopped.pop(continue_hit_id, None) is not None)
+                    self._stopped_tensors.pop(continue_hit_id, None)
                 self._condition.notify_all()
             return {"released": released}
         raise ValueError(f"Unknown agent method: {method}")
@@ -434,6 +452,12 @@ class AgentRuntime:
         save_file({"activation": tensor.detach().contiguous().cpu()}, path)
         return str(path)
 
+    def _capture_breakpoint_tensor(self, hit_id: str, tensor: Any) -> str:
+        self.tensor_dir.mkdir(parents=True, exist_ok=True)
+        path = self.tensor_dir / f"breakpoint-{hit_id}.safetensors"
+        save_file({"activation": tensor.detach().contiguous().cpu()}, path)
+        return str(path)
+
     def _stop_at_breakpoint(
         self,
         breakpoint: LiveBreakpoint,
@@ -454,10 +478,12 @@ class AgentRuntime:
         deadline = time.monotonic() + breakpoint.timeout_seconds
         with self._condition:
             self._stopped[hit.hit_id] = hit
+            self._stopped_tensors[hit.hit_id] = tensor.detach()
             while hit.hit_id in self._stopped:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     self._stopped.pop(hit.hit_id, None)
+                    self._stopped_tensors.pop(hit.hit_id, None)
                     break
                 self._condition.wait(timeout=remaining)
 

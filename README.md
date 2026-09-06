@@ -112,6 +112,7 @@ ldb attach /tmp/ldb-$(id -u)/agents
 (ldb) events
 (ldb) break stop-10 'block.10.residual.post' --timeout 60
 (ldb) status
+(ldb) inspect-hit <hit-id> --capture
 (ldb) patch-set suppress-block-10 'block.10.residual.post' scale 0.5 \
   --request <request-id>
 (ldb) continue

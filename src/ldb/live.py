@@ -20,6 +20,7 @@ class AgentCapability(StrEnum):
     PATCH_ACTIVATION = "patch.activation"
     PATCH_REQUEST_SCOPED = "patch.request_scoped"
     BREAKPOINT_BATCH = "breakpoint.batch"
+    BREAKPOINT_INSPECT = "breakpoint.inspect"
     EAGER_ONLY = "execution.eager_only"
     MODEL_IDENTITY = "model.identity"
     PATCH_CUDA_GRAPH = "patch.cuda_graph"
@@ -79,6 +80,11 @@ class BreakpointHit(FrozenModel):
     request_ids: tuple[str, ...] = ()
     summary: TensorSummary
     stopped_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class BreakpointInspection(FrozenModel):
+    hit: BreakpointHit | None = None
+    tensor_file: str | None = None
 
 
 class LiveTraceEvent(FrozenModel):

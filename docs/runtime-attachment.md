@@ -42,6 +42,7 @@ one bounded JSON object followed by a newline. Supported methods are:
 | `break.set` | Stop a model thread at a normalized eager hook. |
 | `break.remove` | Remove a breakpoint by ID. |
 | `break.list` | List configured breakpoints. |
+| `break.inspect` | Inspect a stopped activation and optionally persist its tensor. |
 | `continue` | Release one or all stopped model threads. |
 
 `patch.set` supports scalar `scale`, `add`, and `ablate`; tensor-backed `add`
@@ -124,6 +125,12 @@ A breakpoint stops the worker's current model thread, which pauses the whole for
 batch at that rank. It does not yet retract a single request while unrelated requests
 continue. Breakpoints have mandatory bounded timeouts to avoid leaving a serving
 worker stopped indefinitely after a client failure.
+
+While stopped, use `inspect-hit HIT_ID` for the typed activation summary or
+`inspect-hit HIT_ID --capture` to persist that exact activation as `safetensors`
+before applying a patch and continuing. Inspection returns an empty hit on ranks
+that do not own the requested breakpoint hit, so it remains safe through a
+multi-rank client.
 
 Full tensor capture synchronizes the selected tensor to CPU and writes it to disk.
 Use narrow hook globs and isolated debug traffic. Summary capture also calls scalar

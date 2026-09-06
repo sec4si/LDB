@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from ldb.causal import CausalGraphReport, CausalReport
-from ldb.live import AgentDescriptor, AgentRequest, AgentResponse
+from ldb.live import AgentDescriptor, AgentRequest, AgentResponse, BreakpointInspection
 from ldb.models import NeuralPatch, RunManifest
 from ldb.sae import FeatureReport
 from ldb.search import (
@@ -23,6 +23,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "agent-descriptor": AgentDescriptor,
     "agent-request": AgentRequest,
     "agent-response": AgentResponse,
+    "breakpoint-inspection": BreakpointInspection,
     "candidate-set": CandidateSet,
     "causal-graph-report": CausalGraphReport,
     "causal-report": CausalReport,

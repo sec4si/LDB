@@ -52,6 +52,7 @@ _ATTACH_HELP = """Commands:
   break BREAKPOINT_ID HOOK [--request REQUEST_ID] [--timeout SECONDS]
   delete BREAKPOINT_ID
   breaks
+  inspect-hit HIT_ID [--capture]
   continue [HIT_ID]
   help
   quit
@@ -493,6 +494,11 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
         method, params = "break.remove", {"breakpoint_id": arguments[0]}
     elif name == "breaks":
         method = "break.list"
+    elif name == "inspect-hit" and arguments:
+        if len(arguments) > 2 or (len(arguments) == 2 and arguments[1] != "--capture"):
+            raise ValueError("Usage: inspect-hit HIT_ID [--capture]")
+        method = "break.inspect"
+        params = {"hit_id": arguments[0], "capture": "--capture" in arguments[1:]}
     elif name == "continue" and len(arguments) <= 1:
         method = "continue"
         if arguments:

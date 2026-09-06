@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
-from safetensors.torch import save_file
+from safetensors.torch import load_file, save_file
 
 from ldb.agent import AgentRuntime
 from ldb.client import AgentClient, AgentGroupClient
@@ -332,6 +332,11 @@ def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
             time.sleep(0.01)
             status = client.call("status")
         assert status["stopped"][0]["breakpoint_id"] == "stop-1"
+        hit_id = status["stopped"][0]["hit_id"]
+        inspection = client.call("break.inspect", {"hit_id": hit_id, "capture": True})
+        assert inspection["hit"]["summary"]["mean"] == 2.0
+        captured = load_file(inspection["tensor_file"])["activation"]
+        assert captured.tolist() == [2.0]
 
         client.call(
             "patch.set",
@@ -346,6 +351,7 @@ def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
         worker.join(timeout=1)
         assert not worker.is_alive()
         assert outputs[0].tolist() == [6.0]
+        assert client.call("break.inspect", {"hit_id": hit_id})["hit"] is None
     finally:
         client.call("continue")
         agent.close()

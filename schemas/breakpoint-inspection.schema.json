@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "BreakpointHit": {
+      "additionalProperties": false,
+      "properties": {
+        "breakpoint_id": {
+          "title": "Breakpoint Id",
+          "type": "string"
+        },
+        "hit_id": {
+          "title": "Hit Id",
+          "type": "string"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phase"
+        },
+        "rank": {
+          "minimum": 0,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "request_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Request Ids",
+          "type": "array"
+        },
+        "stopped_at": {
+          "format": "date-time",
+          "title": "Stopped At",
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/$defs/TensorSummary"
+        }
+      },
+      "required": [
+        "hit_id",
+        "breakpoint_id",
+        "hook",
+        "rank",
+        "summary"
+      ],
+      "title": "BreakpointHit",
+      "type": "object"
+    },
+    "TensorSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "title": "Device",
+          "type": "string"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Norm"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Std"
+        }
+      },
+      "required": [
+        "shape",
+        "dtype",
+        "device"
+      ],
+      "title": "TensorSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "hit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BreakpointHit"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tensor_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tensor File"
+    }
+  },
+  "title": "BreakpointInspection",
+  "type": "object"
+}

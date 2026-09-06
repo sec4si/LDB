@@ -8,6 +8,7 @@
         "patch.activation",
         "patch.request_scoped",
         "breakpoint.batch",
+        "breakpoint.inspect",
         "execution.eager_only",
         "model.identity",
         "patch.cuda_graph"
