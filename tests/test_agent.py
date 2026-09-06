@@ -161,6 +161,43 @@ def test_agent_ablates_one_attention_head(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_scales_one_sae_feature(tmp_path: Path) -> None:
+    dictionary_path = tmp_path / "dictionary.safetensors"
+    save_file(
+        {
+            "encoder": torch.eye(2),
+            "decoder": torch.eye(2),
+            "encoder_bias": torch.zeros(2),
+            "decoder_bias": torch.zeros(2),
+        },
+        dictionary_path,
+    )
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "feature-0",
+                "hook": "block.0.residual.post",
+                "operation": "feature_scale",
+                "value": 0.0,
+                "dictionary": str(dictionary_path),
+                "feature": 0,
+            },
+        )
+        output = agent.process_tensor("block.0.residual.post", torch.tensor([[2.0, 3.0]]))
+        assert output.tolist() == [[0.0, 3.0]]
+    finally:
+        agent.close()
+
+
 def test_request_scoped_patch_only_changes_selected_tokens(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

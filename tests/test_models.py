@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from ldb.models import NeuralPatch
+from ldb.models import Intervention, InterventionKind, NeuralPatch
 from ldb.patches import load_patch
 
 
@@ -27,4 +27,22 @@ def test_patch_rejects_unknown_fields() -> None:
                 "interventions": [{"hook": "logits", "operation": "ablate"}],
                 "unexpected": True,
             }
+        )
+
+
+def test_feature_scale_requires_dictionary_and_feature() -> None:
+    intervention = Intervention(
+        hook="block.0.residual.post",
+        operation=InterventionKind.FEATURE_SCALE,
+        value=0.4,
+        dictionary="block-0.safetensors",
+        feature=12,
+    )
+    assert intervention.feature == 12
+
+    with pytest.raises(ValidationError, match="Invalid arguments"):
+        Intervention(
+            hook="block.0.residual.post",
+            operation=InterventionKind.FEATURE_SCALE,
+            value=0.4,
         )

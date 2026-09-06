@@ -55,6 +55,9 @@ the serving worker's filesystem and must contain either one tensor or a tensor n
   --expert 7 --request request-42
 (ldb) patch-set head-1 'block.20.attention.heads' head_ablate \
   --head 17 --heads 32 --request request-42
+(ldb) patch-set feature-1 'block.20.residual.post' feature_scale 0.4 \
+  --dictionary /srv/ldb/block-20-sae.safetensors --feature 18372 \
+  --request request-42
 (ldb) patch-load neural-patch.yaml --request request-42
 ```
 

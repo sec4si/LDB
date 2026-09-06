@@ -84,6 +84,31 @@
           "default": null,
           "title": "Num Heads"
         },
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
         "request_scoped": {
           "default": true,
           "title": "Request Scoped",
@@ -104,7 +129,8 @@
         "replace",
         "add",
         "routing_bias",
-        "head_ablate"
+        "head_ablate",
+        "feature_scale"
       ],
       "title": "InterventionKind",
       "type": "string"

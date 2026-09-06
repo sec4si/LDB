@@ -29,6 +29,7 @@ def apply_tensor_operation(
     expert: int | None = None,
     head: int | None = None,
     num_heads: int | None = None,
+    feature: Any = None,
 ) -> Any:
     import torch
 
@@ -63,6 +64,10 @@ def apply_tensor_operation(
         modified = tensor.clone()
         modified[..., head * width : (head + 1) * width] = 0
         return modified
+    if operation is InterventionKind.FEATURE_SCALE:
+        assert value is not None
+        assert feature is not None
+        return feature.scale(tensor, value)
     raise ValueError(f"Unsupported intervention operation: {operation}")
 
 

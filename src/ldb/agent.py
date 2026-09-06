@@ -32,6 +32,7 @@ from ldb.live import (
     LiveTraceEvent,
 )
 from ldb.models import InterventionKind
+from ldb.sae import SAEDictionary
 from ldb.trace import summarize_tensor
 
 _MAX_REQUEST_BYTES = 1024 * 1024
@@ -242,7 +243,12 @@ class AgentRuntime:
             _validate_live_patch(patch)
             if self.graph_control:
                 _validate_graph_patch(patch)
-            replacement = load_intervention_tensor(patch.tensor) if patch.tensor else None
+            replacement: Any
+            if patch.dictionary is not None:
+                assert patch.feature is not None
+                replacement = SAEDictionary(Path(patch.dictionary)).feature(patch.feature)
+            else:
+                replacement = load_intervention_tensor(patch.tensor) if patch.tensor else None
             with self._lock:
                 self._patches[patch.patch_id] = patch
                 if replacement is None:
@@ -513,10 +519,12 @@ def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> 
         expert=patch.expert,
         head=patch.head,
         num_heads=patch.num_heads,
+        feature=replacement,
     )
 
 
 def _validate_live_patch(patch: LiveIntervention) -> None:
+    no_feature = patch.dictionary is None and patch.feature is None
     if patch.operation is InterventionKind.SCALE:
         if (
             patch.value is None
@@ -524,6 +532,7 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
             or patch.expert is not None
             or patch.head is not None
             or patch.num_heads is not None
+            or not no_feature
         ):
             raise ValueError("scale requires only a numeric value")
     elif patch.operation is InterventionKind.ROUTING_BIAS:
@@ -533,6 +542,7 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
             or patch.tensor is not None
             or patch.head is not None
             or patch.num_heads is not None
+            or not no_feature
         ):
             raise ValueError("routing_bias requires a numeric value and expert index")
     elif patch.operation is InterventionKind.ADD:
@@ -541,6 +551,7 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
             or patch.expert is not None
             or patch.head is not None
             or patch.num_heads is not None
+            or not no_feature
         ):
             raise ValueError("add requires exactly one of value or tensor")
     elif patch.operation is InterventionKind.REPLACE:
@@ -550,6 +561,7 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
             or patch.expert is not None
             or patch.head is not None
             or patch.num_heads is not None
+            or not no_feature
         ):
             raise ValueError("replace requires only a tensor file")
     elif patch.operation is InterventionKind.HEAD_ABLATE:
@@ -560,14 +572,27 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
             or patch.head is None
             or patch.num_heads is None
             or patch.head >= patch.num_heads
+            or not no_feature
         ):
             raise ValueError("head_ablate requires a valid head and num_heads")
+    elif patch.operation is InterventionKind.FEATURE_SCALE:
+        if (
+            patch.value is None
+            or patch.tensor is not None
+            or patch.expert is not None
+            or patch.head is not None
+            or patch.num_heads is not None
+            or patch.dictionary is None
+            or patch.feature is None
+        ):
+            raise ValueError("feature_scale requires value, dictionary, and feature")
     elif patch.operation is InterventionKind.ABLATE and (
         patch.value is not None
         or patch.tensor is not None
         or patch.expert is not None
         or patch.head is not None
         or patch.num_heads is not None
+        or not no_feature
     ):
         raise ValueError("ablate does not accept a value or tensor")
 

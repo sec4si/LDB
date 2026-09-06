@@ -37,7 +37,8 @@ _ATTACH_HELP = """Commands:
   events [AFTER_SEQUENCE]
   clear
   patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX]
-    [--head INDEX --heads COUNT] [--request REQUEST_ID]
+    [--head INDEX --heads COUNT] [--dictionary PATH --feature INDEX]
+    [--request REQUEST_ID]
   patch-load PATH [--request REQUEST_ID]
   patch-remove PATCH_ID
   patches
@@ -57,6 +58,8 @@ class _PatchArguments:
     expert: int | None = None
     head: int | None = None
     num_heads: int | None = None
+    dictionary: str | None = None
+    feature: int | None = None
     request_ids: list[str] = field(default_factory=list)
 
 
@@ -347,7 +350,15 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
             "operation": operation,
             "request_ids": parsed.request_ids,
         }
-        for key in ("value", "tensor", "expert", "head", "num_heads"):
+        for key in (
+            "value",
+            "tensor",
+            "expert",
+            "head",
+            "num_heads",
+            "dictionary",
+            "feature",
+        ):
             if (argument := getattr(parsed, key)) is not None:
                 params[key] = argument
         method = "patch.set"
@@ -435,6 +446,15 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
                 params["head"] = intervention.head
             if intervention.num_heads is not None:
                 params["num_heads"] = intervention.num_heads
+            if intervention.dictionary is not None:
+                dictionary_path = Path(intervention.dictionary)
+                params["dictionary"] = str(
+                    dictionary_path
+                    if dictionary_path.is_absolute()
+                    else path.parent / dictionary_path
+                )
+            if intervention.feature is not None:
+                params["feature"] = intervention.feature
             client.call("patch.set", params)
             installed.append(patch_id)
     except Exception:
@@ -489,6 +509,8 @@ def _parse_patch_arguments(arguments: list[str]) -> _PatchArguments:
             "--expert": "expert",
             "--head": "head",
             "--heads": "num_heads",
+            "--dictionary": "dictionary",
+            "--feature": "feature",
         }
         if option not in {"--request", *option_fields} or index + 1 >= len(arguments):
             raise ValueError(f"Invalid patch option: {option}")
@@ -500,7 +522,11 @@ def _parse_patch_arguments(arguments: list[str]) -> _PatchArguments:
             if getattr(parsed, field_name) is not None:
                 raise ValueError(f"{option} may only be specified once")
             raw = arguments[index]
-            setattr(parsed, field_name, raw if option == "--tensor" else int(raw))
+            setattr(
+                parsed,
+                field_name,
+                raw if option in {"--tensor", "--dictionary"} else int(raw),
+            )
         index += 1
     return parsed
 

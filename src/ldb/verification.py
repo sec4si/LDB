@@ -13,6 +13,7 @@ from ldb.causal import CausalRuntime
 from ldb.interventions import apply_tensor_operation, load_intervention_tensor
 from ldb.models import FrozenModel, HookPoint, NeuralPatch
 from ldb.runtime import ProbeHandle
+from ldb.sae import SAEDictionary
 from ldb.search import BehaviorCase, CaseScore, EvaluationSuite
 
 
@@ -79,7 +80,13 @@ def verify_patch(
             if not matches:
                 raise ValueError(f"Patch hook did not match this runtime: {intervention.hook}")
             replacement = None
-            if intervention.tensor is not None:
+            if intervention.dictionary is not None:
+                dictionary_path = Path(intervention.dictionary)
+                if not dictionary_path.is_absolute():
+                    dictionary_path = patch_directory / dictionary_path
+                assert intervention.feature is not None
+                replacement = SAEDictionary(dictionary_path).feature(intervention.feature)
+            elif intervention.tensor is not None:
                 tensor_path = Path(intervention.tensor)
                 if not tensor_path.is_absolute():
                     tensor_path = patch_directory / tensor_path
@@ -103,6 +110,7 @@ def verify_patch(
                     expert=expert,
                     head=head,
                     num_heads=num_heads,
+                    feature=loaded,
                 )
 
             handles.extend(runtime.install_intervention(hook, apply) for hook in matches)

@@ -27,3 +27,16 @@ ldb features runs/<run-id> \
 ```
 
 Reports bind the RunBundle ID, hook sequence, and SHA-256 of the exact dictionary.
+
+Scale a single feature without materializing the full latent vector. LDB evaluates
+only the selected encoder column and applies its decoder-direction delta:
+
+```console
+(ldb) patch-set feature-18372 block.20.residual.post feature_scale 0.4 \
+  --dictionary dictionaries/block-20.safetensors \
+  --feature 18372 \
+  --request request-42
+```
+
+The dictionary is loaded once when the patch is installed. Its selected vectors are
+cached on the activation device and dtype after first use.

@@ -84,6 +84,47 @@ class SAEDictionary:
         values = activation.detach().float().reshape(-1, self.model_width).cpu()
         return torch.relu((values - self.decoder_bias) @ self.encoder + self.encoder_bias)
 
+    def feature(self, index: int) -> SAEFeature:
+        if index < 0 or index >= self.feature_count:
+            raise ValueError(f"SAE feature {index} is outside dictionary size {self.feature_count}")
+        return SAEFeature(
+            encoder=self.encoder[:, index],
+            decoder=self.decoder[index],
+            encoder_bias=float(self.encoder_bias[index].item()),
+            decoder_bias=self.decoder_bias,
+        )
+
+
+class SAEFeature:
+    def __init__(
+        self,
+        *,
+        encoder: Any,
+        decoder: Any,
+        encoder_bias: float,
+        decoder_bias: Any,
+    ) -> None:
+        self.encoder = encoder
+        self.decoder = decoder
+        self.encoder_bias = encoder_bias
+        self.decoder_bias = decoder_bias
+        self._cache: dict[tuple[str, str], tuple[Any, Any, Any]] = {}
+
+    def scale(self, activation: Any, factor: float) -> Any:
+        import torch
+
+        key = (str(activation.device), str(activation.dtype))
+        values = self._cache.get(key)
+        if values is None:
+            values = tuple(
+                tensor.to(device=activation.device, dtype=activation.dtype)
+                for tensor in (self.encoder, self.decoder, self.decoder_bias)
+            )
+            self._cache[key] = values
+        encoder, decoder, decoder_bias = values
+        feature = torch.relu((activation - decoder_bias) @ encoder + self.encoder_bias)
+        return activation + (factor - 1.0) * feature.unsqueeze(-1) * decoder
+
 
 def inspect_sae_features(
     activation: Any,

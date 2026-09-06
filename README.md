@@ -28,6 +28,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
 - clean/corrupt activation patching for causal next-token localization;
 - canonical SAE dictionary loading and top-feature inspection;
+- request-scoped single-feature SAE scaling;
 - regression-aware patch search, reproducible export, and verification;
 - opt-in fixed-address CUDA Graph control slots for global scalar patches.
 

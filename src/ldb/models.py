@@ -82,6 +82,7 @@ class InterventionKind(StrEnum):
     ADD = "add"
     ROUTING_BIAS = "routing_bias"
     HEAD_ABLATE = "head_ablate"
+    FEATURE_SCALE = "feature_scale"
 
 
 class Intervention(FrozenModel):
@@ -92,10 +93,13 @@ class Intervention(FrozenModel):
     expert: int | None = Field(default=None, ge=0)
     head: int | None = Field(default=None, ge=0)
     num_heads: int | None = Field(default=None, gt=0)
+    dictionary: str | None = None
+    feature: int | None = Field(default=None, ge=0)
     request_scoped: bool = True
 
     @model_validator(mode="after")
     def valid_arguments(self) -> Intervention:
+        no_feature = self.dictionary is None and self.feature is None
         if self.operation is InterventionKind.SCALE:
             valid = (
                 self.value is not None
@@ -103,6 +107,7 @@ class Intervention(FrozenModel):
                 and self.expert is None
                 and self.head is None
                 and self.num_heads is None
+                and no_feature
             )
         elif self.operation is InterventionKind.ADD:
             valid = (
@@ -110,6 +115,7 @@ class Intervention(FrozenModel):
                 and self.expert is None
                 and self.head is None
                 and self.num_heads is None
+                and no_feature
             )
         elif self.operation is InterventionKind.REPLACE:
             valid = (
@@ -118,6 +124,7 @@ class Intervention(FrozenModel):
                 and self.expert is None
                 and self.head is None
                 and self.num_heads is None
+                and no_feature
             )
         elif self.operation is InterventionKind.ROUTING_BIAS:
             valid = (
@@ -126,6 +133,7 @@ class Intervention(FrozenModel):
                 and self.expert is not None
                 and self.head is None
                 and self.num_heads is None
+                and no_feature
             )
         elif self.operation is InterventionKind.HEAD_ABLATE:
             valid = (
@@ -135,6 +143,17 @@ class Intervention(FrozenModel):
                 and self.head is not None
                 and self.num_heads is not None
                 and self.head < self.num_heads
+                and no_feature
+            )
+        elif self.operation is InterventionKind.FEATURE_SCALE:
+            valid = (
+                self.value is not None
+                and self.tensor is None
+                and self.expert is None
+                and self.head is None
+                and self.num_heads is None
+                and self.dictionary is not None
+                and self.feature is not None
             )
         else:
             valid = (
@@ -143,6 +162,8 @@ class Intervention(FrozenModel):
                 and self.expert is None
                 and self.head is None
                 and self.num_heads is None
+                and self.dictionary is None
+                and self.feature is None
             )
         if not valid:
             raise ValueError(f"Invalid arguments for {self.operation.value} intervention")
