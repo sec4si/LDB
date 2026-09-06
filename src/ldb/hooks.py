@@ -111,6 +111,14 @@ def install_model_runtime(
             "attention.output",
             ("self_attn", "attn"),
         )
+        _install_first_pre_hook(
+            agent,
+            module_by_path,
+            prefix,
+            index,
+            "attention.heads",
+            ("self_attn.o_proj", "attn.c_proj"),
+        )
         _install_first_post_hook(
             agent,
             module_by_path,
@@ -231,6 +239,23 @@ def _install_first_post_hook(
             agent.add_handle(
                 module.register_forward_hook(_make_post_hook(agent, f"block.{index}.{normalized}"))
             )
+            return
+
+
+def _install_first_pre_hook(
+    agent: AgentRuntime,
+    module_by_path: Mapping[str, Any],
+    prefix: str,
+    index: int,
+    normalized: str,
+    suffixes: Sequence[str],
+) -> None:
+    for suffix in suffixes:
+        module = module_by_path.get(f"{prefix}.{suffix}")
+        if module is not None:
+            hook = f"block.{index}.{normalized}"
+            _prepare_graph_hook(agent, hook, module)
+            agent.add_handle(module.register_forward_pre_hook(_make_pre_hook(agent, hook)))
             return
 
 

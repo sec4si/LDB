@@ -27,6 +27,8 @@ def apply_tensor_operation(
     value: float | None = None,
     replacement: Any = None,
     expert: int | None = None,
+    head: int | None = None,
+    num_heads: int | None = None,
 ) -> Any:
     import torch
 
@@ -49,6 +51,17 @@ def apply_tensor_operation(
             raise ValueError(f"Expert {expert} is outside router dimension {tensor.shape[-1:]}")
         modified = tensor.clone()
         modified[..., expert] += value
+        return modified
+    if operation is InterventionKind.HEAD_ABLATE:
+        assert head is not None
+        assert num_heads is not None
+        if not tensor.shape or tensor.shape[-1] % num_heads:
+            raise ValueError(
+                f"Activation width {tensor.shape[-1:]} is not divisible by {num_heads} heads"
+            )
+        width = tensor.shape[-1] // num_heads
+        modified = tensor.clone()
+        modified[..., head * width : (head + 1) * width] = 0
         return modified
     raise ValueError(f"Unsupported intervention operation: {operation}")
 

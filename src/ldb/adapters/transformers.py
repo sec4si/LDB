@@ -148,6 +148,22 @@ class TransformersAdapter:
                             phase=HookPhase.POST,
                         )
                     )
+            projection_path = next(
+                (
+                    path
+                    for path in (f"{prefix}.self_attn.o_proj", f"{prefix}.attn.c_proj")
+                    if path in self._module_by_path
+                ),
+                None,
+            )
+            if projection_path is not None:
+                hooks.append(
+                    HookPoint(
+                        name=f"block.{index}.attention.heads",
+                        module_path=projection_path,
+                        phase=HookPhase.PRE,
+                    )
+                )
         return tuple(hooks)
 
     def hook_points(self) -> Sequence[HookPoint]:

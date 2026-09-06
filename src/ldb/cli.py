@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import shlex
 from contextlib import suppress
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -33,7 +34,8 @@ _ATTACH_HELP = """Commands:
   disarm
   events [AFTER_SEQUENCE]
   clear
-  patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX] [--request REQUEST_ID]
+  patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX]
+    [--head INDEX --heads COUNT] [--request REQUEST_ID]
   patch-load PATH [--request REQUEST_ID]
   patch-remove PATCH_ID
   patches
@@ -44,6 +46,16 @@ _ATTACH_HELP = """Commands:
   help
   quit
 """
+
+
+@dataclass
+class _PatchArguments:
+    value: float | None = None
+    tensor: str | None = None
+    expert: int | None = None
+    head: int | None = None
+    num_heads: int | None = None
+    request_ids: list[str] = field(default_factory=list)
 
 
 def _record_callback(recorder: RunBundleRecorder, *, capture: bool) -> ProbeCallback:
@@ -280,19 +292,16 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
         method, params = "patch.remove", {"patch_id": arguments[0]}
     elif name == "patch-set" and len(arguments) >= 3:
         patch_id, hook, operation = arguments[:3]
-        value, tensor, expert, request_ids = _parse_patch_arguments(arguments[3:])
+        parsed = _parse_patch_arguments(arguments[3:])
         params = {
             "patch_id": patch_id,
             "hook": hook,
             "operation": operation,
-            "request_ids": request_ids,
+            "request_ids": parsed.request_ids,
         }
-        if value is not None:
-            params["value"] = value
-        if tensor is not None:
-            params["tensor"] = tensor
-        if expert is not None:
-            params["expert"] = expert
+        for key in ("value", "tensor", "expert", "head", "num_heads"):
+            if (argument := getattr(parsed, key)) is not None:
+                params[key] = argument
         method = "patch.set"
     elif name == "patch-load" and arguments:
         _load_live_patch(client, arguments)
@@ -374,6 +383,10 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
                 )
             if intervention.expert is not None:
                 params["expert"] = intervention.expert
+            if intervention.head is not None:
+                params["head"] = intervention.head
+            if intervention.num_heads is not None:
+                params["num_heads"] = intervention.num_heads
             client.call("patch.set", params)
             installed.append(patch_id)
     except Exception:
@@ -415,34 +428,33 @@ def _parse_arm_arguments(arguments: list[str]) -> tuple[bool, list[str], list[st
     return capture, hooks or ["*"], request_ids
 
 
-def _parse_patch_arguments(
-    arguments: list[str],
-) -> tuple[float | None, str | None, int | None, list[str]]:
-    value: float | None = None
-    tensor: str | None = None
-    expert: int | None = None
-    request_ids: list[str] = []
+def _parse_patch_arguments(arguments: list[str]) -> _PatchArguments:
+    parsed = _PatchArguments()
     index = 0
     if arguments and not arguments[0].startswith("--"):
-        value = float(arguments[0])
+        parsed.value = float(arguments[0])
         index = 1
     while index < len(arguments):
         option = arguments[index]
-        if option not in {"--request", "--tensor", "--expert"} or index + 1 >= len(arguments):
+        option_fields = {
+            "--tensor": "tensor",
+            "--expert": "expert",
+            "--head": "head",
+            "--heads": "num_heads",
+        }
+        if option not in {"--request", *option_fields} or index + 1 >= len(arguments):
             raise ValueError(f"Invalid patch option: {option}")
         index += 1
         if option == "--request":
-            request_ids.append(arguments[index])
-        elif option == "--tensor":
-            if tensor is not None:
-                raise ValueError("--tensor may only be specified once")
-            tensor = arguments[index]
+            parsed.request_ids.append(arguments[index])
         else:
-            if expert is not None:
-                raise ValueError("--expert may only be specified once")
-            expert = int(arguments[index])
+            field_name = option_fields[option]
+            if getattr(parsed, field_name) is not None:
+                raise ValueError(f"{option} may only be specified once")
+            raw = arguments[index]
+            setattr(parsed, field_name, raw if option == "--tensor" else int(raw))
         index += 1
-    return value, tensor, expert, request_ids
+    return parsed
 
 
 def _parse_break_arguments(arguments: list[str]) -> tuple[list[str], float]:

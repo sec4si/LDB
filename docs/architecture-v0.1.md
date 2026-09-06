@@ -38,6 +38,7 @@ classes. An adapter maps backend modules onto names such as:
 ```text
 block.17.residual.pre
 block.17.attention.output
+block.17.attention.heads
 block.17.mlp.output
 block.17.residual.post
 block.17.moe.router.logits

@@ -92,6 +92,8 @@ def verify_patch(
                 value: float | None = intervention.value,
                 loaded: Any = replacement,
                 expert: int | None = intervention.expert,
+                head: int | None = intervention.head,
+                num_heads: int | None = intervention.num_heads,
             ) -> Any:
                 return apply_tensor_operation(
                     tensor,
@@ -99,6 +101,8 @@ def verify_patch(
                     value=value,
                     replacement=loaded,
                     expert=expert,
+                    head=head,
+                    num_heads=num_heads,
                 )
 
             handles.extend(runtime.install_intervention(hook, apply) for hook in matches)

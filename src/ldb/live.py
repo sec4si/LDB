@@ -53,6 +53,8 @@ class LiveIntervention(FrozenModel):
     value: float | None = None
     tensor: str | None = None
     expert: int | None = Field(default=None, ge=0)
+    head: int | None = Field(default=None, ge=0)
+    num_heads: int | None = Field(default=None, gt=0)
     request_ids: tuple[str, ...] = ()
     enabled: bool = True
 

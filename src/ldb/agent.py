@@ -511,24 +511,63 @@ def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> 
         value=patch.value,
         replacement=replacement,
         expert=patch.expert,
+        head=patch.head,
+        num_heads=patch.num_heads,
     )
 
 
 def _validate_live_patch(patch: LiveIntervention) -> None:
     if patch.operation is InterventionKind.SCALE:
-        if patch.value is None or patch.tensor is not None or patch.expert is not None:
+        if (
+            patch.value is None
+            or patch.tensor is not None
+            or patch.expert is not None
+            or patch.head is not None
+            or patch.num_heads is not None
+        ):
             raise ValueError("scale requires only a numeric value")
     elif patch.operation is InterventionKind.ROUTING_BIAS:
-        if patch.value is None or patch.expert is None or patch.tensor is not None:
+        if (
+            patch.value is None
+            or patch.expert is None
+            or patch.tensor is not None
+            or patch.head is not None
+            or patch.num_heads is not None
+        ):
             raise ValueError("routing_bias requires a numeric value and expert index")
     elif patch.operation is InterventionKind.ADD:
-        if (patch.value is None) == (patch.tensor is None) or patch.expert is not None:
+        if (
+            (patch.value is None) == (patch.tensor is None)
+            or patch.expert is not None
+            or patch.head is not None
+            or patch.num_heads is not None
+        ):
             raise ValueError("add requires exactly one of value or tensor")
     elif patch.operation is InterventionKind.REPLACE:
-        if patch.tensor is None or patch.value is not None or patch.expert is not None:
+        if (
+            patch.tensor is None
+            or patch.value is not None
+            or patch.expert is not None
+            or patch.head is not None
+            or patch.num_heads is not None
+        ):
             raise ValueError("replace requires only a tensor file")
+    elif patch.operation is InterventionKind.HEAD_ABLATE:
+        if (
+            patch.value is not None
+            or patch.tensor is not None
+            or patch.expert is not None
+            or patch.head is None
+            or patch.num_heads is None
+            or patch.head >= patch.num_heads
+        ):
+            raise ValueError("head_ablate requires a valid head and num_heads")
     elif patch.operation is InterventionKind.ABLATE and (
-        patch.value is not None or patch.tensor is not None or patch.expert is not None
+        patch.value is not None
+        or patch.tensor is not None
+        or patch.expert is not None
+        or patch.head is not None
+        or patch.num_heads is not None
     ):
         raise ValueError("ablate does not accept a value or tensor")
 

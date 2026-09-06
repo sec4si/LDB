@@ -24,6 +24,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - loading opt-in SGLang and vLLM runtime plugins;
 - recording bounded live traces and applying reversible scalar, tensor, and
   expert-routing interventions on eager execution paths;
+- pre-projection attention-head inspection and exact head ablation;
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
 - clean/corrupt activation patching for causal next-token localization;
 - regression-aware patch search, reproducible export, and verification;

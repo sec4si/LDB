@@ -133,6 +133,34 @@ def test_agent_adds_tensor_and_routing_bias(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_ablates_one_attention_head(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "disable-head-1",
+                "hook": "block.0.attention.heads",
+                "operation": "head_ablate",
+                "head": 1,
+                "num_heads": 2,
+            },
+        )
+        output = agent.process_tensor(
+            "block.0.attention.heads", torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+        )
+        assert output.tolist() == [[1.0, 2.0, 0.0, 0.0]]
+    finally:
+        agent.close()
+
+
 def test_request_scoped_patch_only_changes_selected_tokens(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",
