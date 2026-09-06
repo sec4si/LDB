@@ -19,7 +19,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - recording hook summaries during real inference;
 - selectively capturing tensors as `safetensors`;
 - inspecting portable RunBundles from the terminal;
-- validating versioned Neural Patch documents.
+- validating versioned Neural Patch documents;
 - attaching the CLI to dormant in-process agents over local Unix sockets;
 - loading opt-in SGLang and vLLM runtime plugins;
 - recording bounded live traces and applying reversible scalar, tensor, and
@@ -83,7 +83,6 @@ SGLang:
 
 ```console
 LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
-  LDB_CUDA_GRAPH=1 \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   sglang serve --model-path <model> --disable-cuda-graph
@@ -93,11 +92,14 @@ vLLM:
 
 ```console
 LDB_ENABLE=1 VLLM_PLUGINS=ldb \
-  LDB_CUDA_GRAPH=1 \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   vllm serve <model> --enforce-eager
 ```
+
+For experimental global scalar patches during CUDA Graph replay, set
+`LDB_CUDA_GRAPH=1` and omit `--disable-cuda-graph` / `--enforce-eager`. Trace events,
+breakpoints, tensor patches, and request-scoped patches still require eager mode.
 
 Attach from another terminal:
 
@@ -135,3 +137,7 @@ See [patch search](docs/patch-search.md) for the optimization objective and suit
 format.
 See [SAE dictionaries](docs/sae-dictionaries.md) for the canonical tensor layout and
 feature-inspection command.
+See [technology choices](docs/technology.md) for language, protocol, storage, and
+dependency decisions.
+See [GPU acceptance](docs/gpu-validation.md) for the real-server smoke harness and
+the evidence required before a runtime combination is marked verified.

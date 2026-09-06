@@ -1,0 +1,45 @@
+name: GPU smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Serving runtime
+        required: true
+        type: choice
+        options:
+          - vllm
+          - sglang
+      model:
+        description: Hugging Face model ID available to the runner
+        required: true
+        default: facebook/opt-125m
+        type: string
+      mode:
+        description: Execution mode
+        required: true
+        default: eager
+        type: choice
+        options:
+          - eager
+          - graph
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, linux, x64, gpu]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install LDB
+        run: python -m pip install '.[transformers]'
+      - name: Install vLLM
+        if: inputs.backend == 'vllm'
+        run: python -m pip install vllm
+      - name: Install SGLang
+        if: inputs.backend == 'sglang'
+        run: python -m pip install 'sglang[all]'
+      - name: Run smoke test
+        run: python scripts/gpu_smoke.py '${{ inputs.backend }}' '${{ inputs.model }}' --mode '${{ inputs.mode }}'

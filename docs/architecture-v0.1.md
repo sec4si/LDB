@@ -18,16 +18,35 @@ Out of scope for v0.1:
 
 ```mermaid
 flowchart LR
-    CLI[CLI and REPL] --> SESSION[Session Controller]
-    SESSION --> ADAPTER[Runtime Adapter]
-    ADAPTER <--> MODEL[Model Runtime]
-    ADAPTER --> TRACE[Trace Recorder]
-    TRACE --> BUNDLE[RunBundle]
-    BUNDLE --> INSPECT[Inspectors]
-    INSPECT --> CAUSAL[Causal Executor]
-    CAUSAL --> SEARCH[Patch Search]
-    SEARCH --> VERIFY[Regression Verifier]
-    VERIFY --> PATCH[Neural Patch]
+    subgraph Control[Control plane]
+        CLI[CLI and REPL]
+        CLIENT[Multi-rank client]
+        CLI --> CLIENT
+    end
+
+    subgraph Serving[Prepared serving process]
+        SOCKET[Private Unix socket]
+        AGENT[Dormant LDB agent]
+        ADAPTER[vLLM / SGLang adapter]
+        MODEL[Model worker]
+        CLIENT --> SOCKET --> AGENT
+        AGENT --> ADAPTER <--> MODEL
+    end
+
+    subgraph Artifacts[Data and evidence]
+        TRACE[Trace recorder]
+        BUNDLE[RunBundle]
+        SAE[SAE inspector]
+        CAUSAL[Causal executor]
+        SEARCH[Patch search]
+        VERIFY[Regression verifier]
+        PATCH[Neural Patch]
+        MODEL --> TRACE --> BUNDLE
+        BUNDLE --> SAE
+        MODEL --> CAUSAL
+        MODEL --> SEARCH --> VERIFY --> PATCH
+        PATCH --> CLIENT
+    end
 ```
 
 ## Runtime boundary
