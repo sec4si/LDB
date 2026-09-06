@@ -250,6 +250,8 @@ class AgentRuntime:
             else:
                 replacement = load_intervention_tensor(patch.tensor) if patch.tensor else None
             with self._lock:
+                if patch.patch_id in self._patches:
+                    raise ValueError(f"Patch ID already exists: {patch.patch_id}")
                 self._patches[patch.patch_id] = patch
                 if replacement is None:
                     self._replacement_tensors.pop(patch.patch_id, None)
@@ -272,6 +274,8 @@ class AgentRuntime:
             if breakpoint.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             with self._lock:
+                if breakpoint.breakpoint_id in self._breakpoints:
+                    raise ValueError(f"Breakpoint ID already exists: {breakpoint.breakpoint_id}")
                 self._breakpoints[breakpoint.breakpoint_id] = breakpoint
             return breakpoint.model_dump(mode="json")
         if method == "break.remove":

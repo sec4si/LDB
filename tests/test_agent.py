@@ -50,6 +50,32 @@ def test_live_agent_trace_and_patch(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_rejects_duplicate_patch_ids(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        patch = {
+            "patch_id": "scale-1",
+            "hook": "block.0.residual.post",
+            "operation": "scale",
+            "value": 0.5,
+        }
+        client.call("patch.set", patch)
+        with pytest.raises(RuntimeError, match="Patch ID already exists"):
+            client.call("patch.set", patch | {"value": 0.25})
+
+        output = agent.process_tensor("block.0.residual.post", torch.tensor([2.0]))
+        assert output.tolist() == [1.0]
+    finally:
+        agent.close()
+
+
 def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

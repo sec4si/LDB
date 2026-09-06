@@ -40,7 +40,7 @@ require an eager execution path.
 
 ## Installation
 
-LDB currently targets Python 3.11.
+LDB currently targets Python 3.11 and 3.12.
 
 ```console
 python3.11 -m venv .venv

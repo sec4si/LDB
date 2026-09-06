@@ -10,6 +10,8 @@ from typing import Any
 
 from ldb.live import AgentDescriptor, AgentRequest, AgentResponse
 
+Rollback = tuple[str, dict[str, Any]] | None
+
 
 class AgentClient:
     def __init__(self, socket_path: Path, *, timeout: float = 10.0) -> None:
@@ -63,35 +65,64 @@ class AgentGroupClient:
         return cls(tuple(AgentClient(Path(item.socket_path)) for item in descriptors))
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> list[Any]:
+        values = params or {}
+        rollbacks = self._prepare_rollbacks(method, values)
         results: list[Any] = []
         errors: list[str] = []
-        successful: list[AgentClient] = []
-        for client in self.clients:
+        successful: list[tuple[AgentClient, Rollback]] = []
+        for client, rollback in zip(self.clients, rollbacks, strict=True):
             try:
-                results.append(client.call(method, params))
-                successful.append(client)
+                results.append(client.call(method, values))
+                successful.append((client, rollback))
             except Exception as exc:
                 errors.append(f"{client.socket_path}: {exc}")
         if errors:
-            rollback_errors = self._rollback(method, params or {}, successful)
+            rollback_errors = self._rollback(successful)
             detail = "Agent group command failed: " + "; ".join(errors)
             if rollback_errors:
                 detail += "; rollback failed: " + "; ".join(rollback_errors)
             raise RuntimeError(detail)
         return results
 
-    @staticmethod
-    def _rollback(method: str, params: dict[str, Any], clients: list[AgentClient]) -> list[str]:
+    def _prepare_rollbacks(self, method: str, params: dict[str, Any]) -> list[Rollback]:
         if method == "patch.set":
-            rollback = ("patch.remove", {"patch_id": params.get("patch_id")})
-        elif method == "break.set":
-            rollback = ("break.remove", {"breakpoint_id": params.get("breakpoint_id")})
-        elif method == "arm":
-            rollback = ("disarm", {})
-        else:
-            return []
+            return [("patch.remove", {"patch_id": params.get("patch_id")})] * len(self.clients)
+        if method == "break.set":
+            return [("break.remove", {"breakpoint_id": params.get("breakpoint_id")})] * len(
+                self.clients
+            )
+        if method in {"patch.remove", "break.remove", "arm", "disarm"}:
+            try:
+                return [self._snapshot(client, method, params) for client in self.clients]
+            except Exception as exc:
+                raise RuntimeError(f"Agent group preflight failed: {exc}") from exc
+        return [None] * len(self.clients)
+
+    @staticmethod
+    def _snapshot(client: AgentClient, method: str, params: dict[str, Any]) -> Rollback:
+        if method in {"arm", "disarm"}:
+            arm = client.call("status")["arm"]
+            return ("arm", arm) if arm["hooks"] else ("disarm", {})
+
+        listing_method = "patch.list" if method == "patch.remove" else "break.list"
+        identifier = "patch_id" if method == "patch.remove" else "breakpoint_id"
+        previous = next(
+            (
+                item
+                for item in client.call(listing_method)
+                if item[identifier] == params.get(identifier)
+            ),
+            None,
+        )
+        restore_method = "patch.set" if method == "patch.remove" else "break.set"
+        return (restore_method, previous) if previous is not None else None
+
+    @staticmethod
+    def _rollback(successful: list[tuple[AgentClient, Rollback]]) -> list[str]:
         errors: list[str] = []
-        for client in clients:
+        for client, rollback in successful:
+            if rollback is None:
+                continue
             try:
                 client.call(*rollback)
             except Exception as exc:

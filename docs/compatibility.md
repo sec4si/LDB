@@ -8,7 +8,7 @@ silently tracing the wrong tensors.
 
 | Runtime | Upstream commit | Required boundaries |
 |---|---|---|
-| SGLang | `2c05ed4e7776c876478f4b2db61acb12b9a27d01` | `sglang.srt.plugins`, `TpModelWorker.__init__`, `ModelRunner.forward`, `ForwardBatch.rids`, `ForwardBatch.extend_seq_lens_cpu` |
+| SGLang | `2e8c03e2c71732b98ac29882ca1ee88bfa3fb1de` | `sglang.srt.plugins`, `TpModelWorker.__init__`, `ModelRunner.forward`, `ForwardBatch.rids`, `ForwardBatch.extend_seq_lens_cpu` |
 | vLLM | `6865e67f0be02d53694517f6f71d7fb96492792d` | `vllm.general_plugins`, V1 `Worker.load_model`, `GPUModelRunner.execute_model`, `InputBatch.req_ids`, `SchedulerOutput.num_scheduled_tokens` |
 
 These snapshots are source audits, not GPU integration-test claims. GPU acceptance
