@@ -12,6 +12,7 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 from rich.table import Table
+from safetensors.torch import load_file
 
 from ldb import __version__
 from ldb.causal import causal_trace
@@ -19,6 +20,7 @@ from ldb.client import AgentGroupClient
 from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
+from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features
 from ldb.search import load_suite, patch_from_search, search_scale_patches
 from ldb.trace import RunBundleRecorder, load_events, load_manifest
 from ldb.verification import verify_patch
@@ -149,6 +151,52 @@ def inspect(bundle: Annotated[Path, typer.Argument(exists=True, file_okay=False)
             "yes" if event.tensor_file else "no",
         )
     console.print(table)
+
+
+@app.command("features")
+def inspect_features(
+    bundle: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    hook: Annotated[str, typer.Option("--hook", help="Captured normalized hook name")],
+    dictionary_path: Annotated[Path, typer.Option("--dictionary", exists=True, dir_okay=False)],
+    top_k: Annotated[int, typer.Option("--top-k", min=1)] = 20,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+) -> None:
+    """Inspect top SAE features in a captured activation."""
+
+    manifest = load_manifest(bundle)
+    matches = [event for event in load_events(bundle) if event.hook == hook and event.tensor_file]
+    if not matches:
+        raise ValueError(f"RunBundle has no captured tensor for hook {hook!r}")
+    event = matches[-1]
+    tensor_file = event.tensor_file
+    assert tensor_file is not None
+    activation = load_file(bundle / tensor_file)["activation"]
+    dictionary = SAEDictionary(dictionary_path)
+    features = inspect_sae_features(activation, dictionary, top_k=top_k)
+    report = FeatureReport(
+        run_id=manifest.run_id,
+        hook=hook,
+        sequence=event.sequence,
+        dictionary_hash=dictionary.digest,
+        token_count=int(activation.numel() // dictionary.model_width),
+        feature_count=dictionary.feature_count,
+        features=features,
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+    table = Table("Feature", "Peak", "Mean", "Active")
+    for feature in features:
+        table.add_row(
+            str(feature.feature),
+            f"{feature.peak:.6g}",
+            f"{feature.mean:.6g}",
+            f"{feature.active_fraction:.1%}",
+        )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
 
 
 @app.command()

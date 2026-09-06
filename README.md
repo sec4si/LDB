@@ -27,6 +27,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - pre-projection attention-head inspection and exact head ablation;
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
 - clean/corrupt activation patching for causal next-token localization;
+- canonical SAE dictionary loading and top-feature inspection;
 - regression-aware patch search, reproducible export, and verification;
 - opt-in fixed-address CUDA Graph control slots for global scalar patches.
 
@@ -130,3 +131,5 @@ the implementation roadmap. See [runtime compatibility](docs/compatibility.md) f
 the distinction between implemented adapter paths and GPU-verified combinations.
 See [patch search](docs/patch-search.md) for the optimization objective and suite
 format.
+See [SAE dictionaries](docs/sae-dictionaries.md) for the canonical tensor layout and
+feature-inspection command.
