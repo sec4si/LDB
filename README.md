@@ -27,9 +27,9 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
 - clean/corrupt activation patching for causal next-token localization.
 
-Scheduler-isolated single-request breakpoints, automated patch search, regression
-suites, and CUDA Graph-aware interventions are not yet implemented. Live activation
-hooks currently require an eager execution path.
+Scheduler-isolated single-request breakpoints, multi-operation combinatorial search,
+and CUDA Graph-aware interventions are not yet implemented. Live activation hooks
+currently require an eager execution path.
 
 ## Installation
 
@@ -57,6 +57,12 @@ ldb causal sshleifer/tiny-gpt2 \
   --corrupt-prompt "The Eiffel Tower is on" \
   --target-token-id 16046 \
   --output causal-report.json
+
+ldb search sshleifer/tiny-gpt2 \
+  --suite examples/suites/next-token.yaml \
+  --hook 'block.*.residual.post' \
+  --scale 0.5 --scale 0.75 --scale 1.25 \
+  --output patch-search.json
 ```
 
 `ldb run` records scalar summaries for every normalized hook point. Full tensors are
@@ -113,3 +119,5 @@ for isolated debugging requests, not normal production traffic.
 See [the v0.1 architecture](docs/architecture-v0.1.md) for component boundaries and
 the implementation roadmap. See [runtime compatibility](docs/compatibility.md) for
 the distinction between implemented adapter paths and GPU-verified combinations.
+See [patch search](docs/patch-search.md) for the optimization objective and suite
+format.

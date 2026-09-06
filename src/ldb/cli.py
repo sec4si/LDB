@@ -17,6 +17,7 @@ from ldb.client import AgentGroupClient
 from ldb.models import HookPoint, RunManifest
 from ldb.patches import load_patch
 from ldb.runtime import ProbeCallback
+from ldb.search import load_suite, search_scale_patches
 from ldb.trace import RunBundleRecorder, load_events, load_manifest
 
 app = typer.Typer(no_args_is_help=True, help="Debug latent state in large language models.")
@@ -177,6 +178,55 @@ def causal(
         f"Clean log P: {report.clean_log_probability:.6g}  "
         f"Corrupt log P: {report.corrupt_log_probability:.6g}"
     )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("search")
+def search_patches(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    suite: Annotated[Path, typer.Option("--suite", exists=True, dir_okay=False)],
+    hook: Annotated[
+        list[str] | None,
+        typer.Option("--hook", help="Glob selecting candidate hook points"),
+    ] = None,
+    scale: Annotated[
+        list[float] | None,
+        typer.Option("--scale", help="Candidate activation scale"),
+    ] = None,
+    regression_weight: Annotated[float, typer.Option("--regression-weight", min=0.0)] = 1.0,
+    complexity_weight: Annotated[float, typer.Option("--complexity-weight", min=0.0)] = 0.01,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Search minimal scalar activation patches with regression penalties."""
+
+    from ldb.adapters.transformers import TransformersAdapter
+
+    adapter = TransformersAdapter(model, revision=revision, device=device)
+    report = search_scale_patches(
+        adapter,
+        load_suite(suite),
+        hook_globs=hook or ["block.*.residual.post"],
+        scales=scale or [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+        regression_weight=regression_weight,
+        complexity_weight=complexity_weight,
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+    table = Table("Hook", "Scale", "Target gain", "Regression loss", "Objective")
+    for trial in report.trials[:20]:
+        table.add_row(
+            trial.hook,
+            f"{trial.scale:.6g}",
+            f"{trial.target_gain:+.6g}",
+            f"{trial.regression_loss:.6g}",
+            f"{trial.objective:+.6g}",
+        )
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")

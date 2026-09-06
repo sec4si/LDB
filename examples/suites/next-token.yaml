@@ -1,0 +1,11 @@
+schema_version: ldb.suite/v1alpha1
+
+target:
+  - case_id: target-eiffel
+    prompt: The Eiffel Tower is in
+    target_token_id: 16046
+
+regression:
+  - case_id: control-water
+    prompt: Water freezes at
+    target_token_id: 362
