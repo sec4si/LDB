@@ -59,3 +59,46 @@ def test_replace_first_tensor_preserves_nested_output() -> None:
 def test_replace_first_tensor_rejects_shape_mismatch() -> None:
     with pytest.raises(ValueError, match="Replacement shape"):
         _replace_first_tensor(torch.zeros(2), torch.zeros(3))
+
+
+def test_continuation_score_uses_contextual_tokenization() -> None:
+    adapter = object.__new__(TransformersAdapter)
+    adapter.device = "cpu"
+
+    class Tokenizer:
+        def __call__(self, text):
+            return {
+                "input_ids": {
+                    "prompt": [1],
+                    "prompt continuation": [1, 2, 3],
+                    " continuation": [4],
+                }[text]
+            }
+
+    class Model:
+        def __call__(self, *, input_ids):
+            assert input_ids.tolist() == [[1, 2, 3]]
+            logits = torch.zeros(1, 3, 5)
+            logits[0, 0, 2] = 10
+            logits[0, 1, 3] = 10
+            return SimpleNamespace(logits=logits)
+
+    adapter.tokenizer = Tokenizer()
+    adapter.model = Model()
+
+    score = adapter.continuation_log_probability("prompt", " continuation")
+    assert score == pytest.approx(-0.0001816, abs=1e-6)
+
+
+def test_continuation_score_rejects_unstable_token_boundary() -> None:
+    adapter = object.__new__(TransformersAdapter)
+    adapter.device = "cpu"
+
+    class Tokenizer:
+        def __call__(self, text):
+            return {"input_ids": [1, 2] if text == "prompt" else [1, 3]}
+
+    adapter.tokenizer = Tokenizer()
+
+    with pytest.raises(ValueError, match="token boundary"):
+        adapter.continuation_log_probability("prompt", "continuation")

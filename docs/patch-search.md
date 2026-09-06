@@ -75,7 +75,10 @@ success rate, mean delta, and worst delta independently for every category.
 Cases specify exactly one `target_token_id` or `target_text`. Text continuations may
 contain multiple tokens and are scored by mean token log-probability, so longer
 answers do not receive a larger loss merely because of their length. Include any
-required leading whitespace in `target_text`.
+required leading whitespace in `target_text`. LDB tokenizes the prompt and
+continuation together and rejects a continuation that changes the prompt token
+prefix; use an explicit separator instead of scoring a different tokenization by
+accident.
 
 ## Heterogeneous combination search
 

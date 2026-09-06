@@ -266,15 +266,18 @@ class TransformersAdapter:
     def continuation_log_probability(self, prompt: str, continuation: str) -> float:
         import torch
 
-        prompt_ids = list(self.tokenize(prompt))
-        continuation_ids = list(self.tokenizer(continuation, add_special_tokens=False)["input_ids"])
+        prompt_ids = list(self.tokenizer(prompt)["input_ids"])
+        combined_ids = list(self.tokenizer(prompt + continuation)["input_ids"])
         if not prompt_ids:
             raise ValueError("Prompt must contain at least one token")
+        if combined_ids[: len(prompt_ids)] != prompt_ids:
+            raise ValueError(
+                "Continuation changes the prompt token boundary; include an explicit separator"
+            )
+        continuation_ids = combined_ids[len(prompt_ids) :]
         if not continuation_ids:
             raise ValueError("Continuation must contain at least one token")
-        input_ids = torch.tensor(
-            [prompt_ids + continuation_ids], device=self.device, dtype=torch.long
-        )
+        input_ids = torch.tensor([combined_ids], device=self.device, dtype=torch.long)
         with torch.inference_mode():
             logits = self.model(input_ids=input_ids).logits[0]
             positions = torch.arange(
