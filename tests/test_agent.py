@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
+from safetensors.torch import save_file
 
 from ldb.agent import AgentRuntime
 from ldb.client import AgentClient, AgentGroupClient
@@ -66,7 +67,7 @@ def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
         agent.close()
 
 
-def test_agent_rejects_unsupported_patch(tmp_path: Path) -> None:
+def test_agent_replaces_activation_from_safetensors(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",
         backend_version="1",
@@ -76,15 +77,58 @@ def test_agent_rejects_unsupported_patch(tmp_path: Path) -> None:
     ).start()
     try:
         client = AgentClient(agent.socket_path)
-        with pytest.raises(RuntimeError, match="does not support replace"):
-            client.call(
-                "patch.set",
-                {
-                    "patch_id": "replace-1",
-                    "hook": "block.0.residual.post",
-                    "operation": "replace",
-                },
-            )
+        tensor_file = tmp_path / "replacement.safetensors"
+        save_file({"activation": torch.tensor([9.0, 8.0])}, tensor_file)
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "replace-1",
+                "hook": "block.0.residual.post",
+                "operation": "replace",
+                "tensor": str(tensor_file),
+            },
+        )
+        output = agent.process_tensor("block.0.residual.post", torch.tensor([1.0, 2.0]))
+        assert output.tolist() == [9.0, 8.0]
+    finally:
+        agent.close()
+
+
+def test_agent_adds_tensor_and_routing_bias(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    try:
+        client = AgentClient(agent.socket_path)
+        tensor_file = tmp_path / "steering.safetensors"
+        save_file({"steering": torch.tensor([0.5, -0.5])}, tensor_file)
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "steer-1",
+                "hook": "block.0.residual.post",
+                "operation": "add",
+                "tensor": str(tensor_file),
+            },
+        )
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "router-1",
+                "hook": "block.0.moe.router",
+                "operation": "routing_bias",
+                "value": -0.25,
+                "expert": 1,
+            },
+        )
+        steered = agent.process_tensor("block.0.residual.post", torch.tensor([1.0, 2.0]))
+        biased = agent.process_tensor("block.0.moe.router", torch.tensor([[1.0, 2.0]]))
+        assert steered.tolist() == [1.5, 1.5]
+        assert biased.tolist() == [[1.0, 1.75]]
     finally:
         agent.close()
 

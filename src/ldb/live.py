@@ -47,6 +47,8 @@ class LiveIntervention(FrozenModel):
     hook: str
     operation: InterventionKind
     value: float | None = None
+    tensor: str | None = None
+    expert: int | None = Field(default=None, ge=0)
     request_ids: tuple[str, ...] = ()
     enabled: bool = True
 

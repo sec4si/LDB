@@ -29,7 +29,7 @@ _ATTACH_HELP = """Commands:
   disarm
   events [AFTER_SEQUENCE]
   clear
-  patch-set PATCH_ID HOOK {scale|add|ablate} [VALUE] [--request REQUEST_ID]
+  patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX] [--request REQUEST_ID]
   patch-remove PATCH_ID
   patches
   break BREAKPOINT_ID HOOK [--request REQUEST_ID] [--timeout SECONDS]
@@ -173,7 +173,7 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
         method, params = "patch.remove", {"patch_id": arguments[0]}
     elif name == "patch-set" and len(arguments) >= 3:
         patch_id, hook, operation = arguments[:3]
-        value, request_ids = _parse_patch_arguments(operation, arguments[3:])
+        value, tensor, expert, request_ids = _parse_patch_arguments(arguments[3:])
         params = {
             "patch_id": patch_id,
             "hook": hook,
@@ -182,6 +182,10 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
         }
         if value is not None:
             params["value"] = value
+        if tensor is not None:
+            params["tensor"] = tensor
+        if expert is not None:
+            params["expert"] = expert
         method = "patch.set"
     elif name == "break" and len(arguments) >= 2:
         breakpoint_id, hook = arguments[:2]
@@ -229,22 +233,34 @@ def _parse_arm_arguments(arguments: list[str]) -> tuple[bool, list[str], list[st
     return capture, hooks or ["*"], request_ids
 
 
-def _parse_patch_arguments(operation: str, arguments: list[str]) -> tuple[float | None, list[str]]:
+def _parse_patch_arguments(
+    arguments: list[str],
+) -> tuple[float | None, str | None, int | None, list[str]]:
     value: float | None = None
+    tensor: str | None = None
+    expert: int | None = None
     request_ids: list[str] = []
     index = 0
-    if operation in {"scale", "add"}:
-        if not arguments or arguments[0].startswith("--"):
-            raise ValueError(f"{operation} requires a numeric value")
+    if arguments and not arguments[0].startswith("--"):
         value = float(arguments[0])
         index = 1
     while index < len(arguments):
-        if arguments[index] != "--request" or index + 1 >= len(arguments):
-            raise ValueError(f"Invalid patch option: {arguments[index]}")
+        option = arguments[index]
+        if option not in {"--request", "--tensor", "--expert"} or index + 1 >= len(arguments):
+            raise ValueError(f"Invalid patch option: {option}")
         index += 1
-        request_ids.append(arguments[index])
+        if option == "--request":
+            request_ids.append(arguments[index])
+        elif option == "--tensor":
+            if tensor is not None:
+                raise ValueError("--tensor may only be specified once")
+            tensor = arguments[index]
+        else:
+            if expert is not None:
+                raise ValueError("--expert may only be specified once")
+            expert = int(arguments[index])
         index += 1
-    return value, request_ids
+    return value, tensor, expert, request_ids
 
 
 def _parse_break_arguments(arguments: list[str]) -> tuple[list[str], float]:

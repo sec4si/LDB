@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from safetensors.torch import save_file
+from safetensors.torch import load_file, save_file
 
 from ldb.context import BatchContext, current_batch_context
 from ldb.live import (
@@ -97,6 +97,7 @@ class AgentRuntime:
         self.topology = dict(topology or {})
         self._events: deque[LiveTraceEvent] = deque(maxlen=max_events)
         self._patches: dict[str, LiveIntervention] = {}
+        self._replacement_tensors: dict[str, Any] = {}
         self._breakpoints: dict[str, LiveBreakpoint] = {}
         self._stopped: dict[str, BreakpointHit] = {}
         self._arm = ArmConfig(hooks=())
@@ -216,18 +217,20 @@ class AgentRuntime:
             patch = LiveIntervention.model_validate(params)
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
-            if patch.operation in {InterventionKind.SCALE, InterventionKind.ADD}:
-                if patch.value is None:
-                    raise ValueError(f"{patch.operation.value} requires a numeric value")
-            elif patch.operation is not InterventionKind.ABLATE:
-                raise ValueError(f"Live agent does not support {patch.operation.value} yet")
+            _validate_live_patch(patch)
+            replacement = _load_patch_tensor(patch.tensor) if patch.tensor else None
             with self._lock:
                 self._patches[patch.patch_id] = patch
+                if replacement is None:
+                    self._replacement_tensors.pop(patch.patch_id, None)
+                else:
+                    self._replacement_tensors[patch.patch_id] = replacement
             return patch.model_dump(mode="json")
         if method == "patch.remove":
             patch_id = str(params["patch_id"])
             with self._lock:
                 removed = self._patches.pop(patch_id, None)
+                self._replacement_tensors.pop(patch_id, None)
             return {"removed": removed is not None}
         if method == "patch.list":
             with self._lock:
@@ -294,7 +297,14 @@ class AgentRuntime:
         modified = tensor
         patch_ids: list[str] = []
         for patch in patches:
-            modified, applied = _apply_intervention(modified, patch, context)
+            with self._lock:
+                replacement = self._replacement_tensors.get(patch.patch_id)
+            modified, applied = _apply_intervention(
+                modified,
+                patch,
+                context,
+                replacement=replacement,
+            )
             if applied:
                 patch_ids.append(patch.patch_id)
 
@@ -418,29 +428,84 @@ def _spans_fit(tensor: Any, spans: tuple[Any, ...]) -> bool:
 
 
 def _apply_intervention(
-    tensor: Any, patch: LiveIntervention, context: BatchContext | None
+    tensor: Any,
+    patch: LiveIntervention,
+    context: BatchContext | None,
+    *,
+    replacement: Any = None,
 ) -> tuple[Any, bool]:
     spans = _selected_spans(context, patch.request_ids)
     if patch.request_ids and not spans:
         return tensor, False
     if not patch.request_ids:
-        return _apply_operation(tensor, patch), True
+        return _apply_operation(tensor, patch, replacement), True
     if not _spans_fit(tensor, spans):
         return tensor, False
 
     modified = tensor.clone()
     for span in spans:
-        modified[span.start : span.end] = _apply_operation(tensor[span.start : span.end], patch)
+        modified[span.start : span.end] = _apply_operation(
+            tensor[span.start : span.end], patch, replacement
+        )
     return modified, True
 
 
-def _apply_operation(tensor: Any, patch: LiveIntervention) -> Any:
+def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> Any:
+    import torch
+
     if patch.operation is InterventionKind.SCALE:
         assert patch.value is not None
         return tensor * patch.value
     if patch.operation is InterventionKind.ADD:
-        assert patch.value is not None
-        return tensor + patch.value
+        value = _tensor_for(replacement, tensor) if replacement is not None else patch.value
+        assert value is not None
+        return tensor + value
     if patch.operation is InterventionKind.ABLATE:
         return tensor * 0
+    if patch.operation is InterventionKind.REPLACE:
+        assert replacement is not None
+        return torch.broadcast_to(_tensor_for(replacement, tensor), tensor.shape)
+    if patch.operation is InterventionKind.ROUTING_BIAS:
+        assert patch.value is not None
+        assert patch.expert is not None
+        if not tensor.shape or patch.expert >= tensor.shape[-1]:
+            raise ValueError(
+                f"Expert {patch.expert} is outside router dimension {tensor.shape[-1:]}"
+            )
+        modified = tensor.clone()
+        modified[..., patch.expert] += patch.value
+        return modified
     return tensor
+
+
+def _validate_live_patch(patch: LiveIntervention) -> None:
+    if patch.operation is InterventionKind.SCALE:
+        if patch.value is None or patch.tensor is not None or patch.expert is not None:
+            raise ValueError("scale requires only a numeric value")
+    elif patch.operation is InterventionKind.ROUTING_BIAS:
+        if patch.value is None or patch.expert is None or patch.tensor is not None:
+            raise ValueError("routing_bias requires a numeric value and expert index")
+    elif patch.operation is InterventionKind.ADD:
+        if (patch.value is None) == (patch.tensor is None) or patch.expert is not None:
+            raise ValueError("add requires exactly one of value or tensor")
+    elif patch.operation is InterventionKind.REPLACE:
+        if patch.tensor is None or patch.value is not None or patch.expert is not None:
+            raise ValueError("replace requires only a tensor file")
+    elif patch.operation is InterventionKind.ABLATE and (
+        patch.value is not None or patch.tensor is not None or patch.expert is not None
+    ):
+        raise ValueError("ablate does not accept a value or tensor")
+
+
+def _load_patch_tensor(path_value: str) -> Any:
+    path = Path(path_value).expanduser()
+    tensors = load_file(path)
+    if "activation" in tensors:
+        return tensors["activation"]
+    if len(tensors) != 1:
+        raise ValueError("Patch tensor file must contain one tensor or an 'activation' tensor")
+    return next(iter(tensors.values()))
+
+
+def _tensor_for(value: Any, target: Any) -> Any:
+    return value.to(device=target.device, dtype=target.dtype)

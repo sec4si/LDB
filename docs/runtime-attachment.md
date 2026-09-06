@@ -43,6 +43,18 @@ one bounded JSON object followed by a newline. Supported methods are:
 | `break.list` | List configured breakpoints. |
 | `continue` | Release one or all stopped model threads. |
 
+`patch.set` supports scalar `scale`, `add`, and `ablate`; tensor-backed `add`
+and `replace`; and an expert-specific `routing_bias`. Tensor files are loaded from
+the serving worker's filesystem and must contain either one tensor or a tensor named
+`activation`.
+
+```console
+(ldb) patch-set steer-1 'block.20.residual.post' add \
+  --tensor /srv/ldb/steering.safetensors --request request-42
+(ldb) patch-set route-1 'block.20.moe.router' routing_bias -0.25 \
+  --expert 7 --request request-42
+```
+
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control
 socket.
