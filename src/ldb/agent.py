@@ -32,7 +32,7 @@ from ldb.live import (
     LiveIntervention,
     LiveTraceEvent,
 )
-from ldb.models import InterventionKind
+from ldb.models import InterventionKind, validate_intervention_hook
 from ldb.sae import SAEDictionary
 from ldb.trace import summarize_tensor
 
@@ -669,6 +669,7 @@ def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> 
 
 
 def _validate_live_patch(patch: LiveIntervention) -> None:
+    validate_intervention_hook(patch.hook, patch.operation)
     no_feature = patch.dictionary is None and patch.feature is None
     if patch.operation is InterventionKind.SCALE:
         if (

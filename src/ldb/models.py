@@ -99,6 +99,7 @@ class Intervention(FrozenModel):
 
     @model_validator(mode="after")
     def valid_arguments(self) -> Intervention:
+        validate_intervention_hook(self.hook, self.operation)
         no_feature = self.dictionary is None and self.feature is None
         if self.operation is InterventionKind.SCALE:
             valid = (
@@ -168,6 +169,15 @@ class Intervention(FrozenModel):
         if not valid:
             raise ValueError(f"Invalid arguments for {self.operation.value} intervention")
         return self
+
+
+def validate_intervention_hook(hook: str, operation: InterventionKind) -> None:
+    required_suffix = {
+        InterventionKind.ROUTING_BIAS: ".moe.router.logits",
+        InterventionKind.HEAD_ABLATE: ".attention.heads",
+    }.get(operation)
+    if required_suffix is not None and not hook.endswith(required_suffix):
+        raise ValueError(f"{operation.value} requires a hook ending in {required_suffix}")
 
 
 class ValidationSummary(FrozenModel):

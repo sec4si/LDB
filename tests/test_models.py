@@ -30,6 +30,22 @@ def test_patch_rejects_unknown_fields() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("operation", "arguments", "expected"),
+    [
+        ("routing_bias", {"value": -0.2, "expert": 1}, ".moe.router.logits"),
+        ("head_ablate", {"head": 1, "num_heads": 2}, ".attention.heads"),
+    ],
+)
+def test_intervention_rejects_incompatible_hook(operation, arguments, expected) -> None:
+    with pytest.raises(ValueError, match=expected.replace(".", r"\.")):
+        Intervention(
+            hook="block.0.residual.post",
+            operation=operation,
+            **arguments,
+        )
+
+
 def test_feature_scale_requires_dictionary_and_feature() -> None:
     intervention = Intervention(
         hook="block.0.residual.post",

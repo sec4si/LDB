@@ -171,14 +171,14 @@ def test_agent_adds_tensor_and_routing_bias(tmp_path: Path) -> None:
             "patch.set",
             {
                 "patch_id": "router-1",
-                "hook": "block.0.moe.router",
+                "hook": "block.0.moe.router.logits",
                 "operation": "routing_bias",
                 "value": -0.25,
                 "expert": 1,
             },
         )
         steered = agent.process_tensor("block.0.residual.post", torch.tensor([1.0, 2.0]))
-        biased = agent.process_tensor("block.0.moe.router", torch.tensor([[1.0, 2.0]]))
+        biased = agent.process_tensor("block.0.moe.router.logits", torch.tensor([[1.0, 2.0]]))
         assert steered.tolist() == [1.5, 1.5]
         assert biased.tolist() == [[1.0, 1.75]]
     finally:

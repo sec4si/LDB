@@ -53,7 +53,7 @@ the serving worker's filesystem and must contain either one tensor or a tensor n
 ```console
 (ldb) patch-set steer-1 'block.20.residual.post' add \
   --tensor /srv/ldb/steering.safetensors --request request-42
-(ldb) patch-set route-1 'block.20.moe.router' routing_bias -0.25 \
+(ldb) patch-set route-1 'block.20.moe.router.logits' routing_bias -0.25 \
   --expert 7 --request request-42
 (ldb) patch-set head-1 'block.20.attention.heads' head_ablate \
   --head 17 --heads 32 --request request-42
