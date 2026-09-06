@@ -16,6 +16,7 @@ AGENT_PROTOCOL_VERSION = "ldb.agent/v1alpha1"
 class AgentCapability(StrEnum):
     HOOK_DISCOVERY = "hooks.discovery"
     TRACE_SUMMARY = "trace.summary"
+    TRACE_CUDA_GRAPH = "trace.cuda_graph"
     TRACE_TENSOR = "trace.tensor"
     PATCH_ACTIVATION = "patch.activation"
     PATCH_REQUEST_SCOPED = "patch.request_scoped"
@@ -98,6 +99,8 @@ class LiveTraceEvent(FrozenModel):
     patched_summary: TensorSummary | None = None
     patch_ids: tuple[str, ...] = ()
     tensor_file: str | None = None
+    source: Literal["eager", "cuda_graph"] = "eager"
+    occurrences: int = Field(default=1, ge=1)
 
 
 class AgentRequest(FrozenModel):

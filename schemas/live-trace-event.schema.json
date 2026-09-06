@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "TensorSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "title": "Device",
+          "type": "string"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Norm"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Std"
+        }
+      },
+      "required": [
+        "shape",
+        "dtype",
+        "device"
+      ],
+      "title": "TensorSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "hook": {
+      "title": "Hook",
+      "type": "string"
+    },
+    "occurrences": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Occurrences",
+      "type": "integer"
+    },
+    "patch_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Patch Ids",
+      "type": "array"
+    },
+    "patched_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TensorSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "phase": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Phase"
+    },
+    "rank": {
+      "minimum": 0,
+      "title": "Rank",
+      "type": "integer"
+    },
+    "request_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Request Ids",
+      "type": "array"
+    },
+    "sequence": {
+      "minimum": 0,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "source": {
+      "default": "eager",
+      "enum": [
+        "eager",
+        "cuda_graph"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/TensorSummary"
+    },
+    "tensor_file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tensor File"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sequence",
+    "hook",
+    "rank",
+    "summary"
+  ],
+  "title": "LiveTraceEvent",
+  "type": "object"
+}

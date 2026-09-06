@@ -42,7 +42,8 @@ All versioned Pydantic artifacts and control messages have committed JSON Schema
 ## Execution modes
 
 Eager mode supports trace events, tensor capture, breakpoints, request filters, and
-all intervention types. Experimental CUDA Graph control records fixed-address
-scale/bias operations before graph capture and supports global scalar `scale`,
-`add`, and `ablate`. Other graph features remain unavailable until they have a
-static-buffer representation and real GPU acceptance evidence.
+all intervention types. Experimental CUDA Graph support records fixed-address
+summary and scale/bias operations before graph capture. It supports scalar summaries
+plus global `scale`, `add`, and `ablate`; request identity, full tensors, and
+breakpoints remain unavailable until they have a safe static-buffer or scheduler
+representation and real GPU acceptance evidence.

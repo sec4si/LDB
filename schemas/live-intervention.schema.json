@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias",
+        "head_ablate",
+        "feature_scale"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "dictionary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dictionary"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "expert": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expert"
+    },
+    "feature": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Feature"
+    },
+    "head": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Head"
+    },
+    "hook": {
+      "title": "Hook",
+      "type": "string"
+    },
+    "num_heads": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Num Heads"
+    },
+    "operation": {
+      "$ref": "#/$defs/InterventionKind"
+    },
+    "patch_id": {
+      "title": "Patch Id",
+      "type": "string"
+    },
+    "request_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Request Ids",
+      "type": "array"
+    },
+    "tensor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tensor"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "patch_id",
+    "hook",
+    "operation"
+  ],
+  "title": "LiveIntervention",
+  "type": "object"
+}

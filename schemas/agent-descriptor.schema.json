@@ -4,6 +4,7 @@
       "enum": [
         "hooks.discovery",
         "trace.summary",
+        "trace.cuda_graph",
         "trace.tensor",
         "patch.activation",
         "patch.request_scoped",

@@ -401,6 +401,61 @@ def test_graph_control_composes_scalar_patches(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_graph_trace_reports_replays_after_arm(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        graph_control=True,
+    ).start()
+    hook = "block.0.residual.post"
+    agent.register_hook(hook)
+    agent.prepare_graph_hook(hook, torch.ones(1))
+    try:
+        client = AgentClient(agent.socket_path)
+        agent.process_tensor(hook, torch.tensor([10.0, 20.0]))
+        client.call("arm", {"hooks": [hook]})
+        assert client.call("events") == []
+
+        agent.process_tensor(hook, torch.tensor([1.0, 3.0]))
+        agent.process_tensor(hook, torch.tensor([2.0, 4.0]))
+        event = client.call("events")[0]
+        assert event["source"] == "cuda_graph"
+        assert event["occurrences"] == 2
+        assert event["summary"]["mean"] == 3.0
+        assert event["patched_summary"]["mean"] == 3.0
+        assert event["request_ids"] == []
+    finally:
+        agent.close()
+
+
+def test_graph_trace_rejects_dynamic_debug_controls(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        graph_control=True,
+    ).start()
+    agent.register_hook("block.0.residual.post")
+    try:
+        client = AgentClient(agent.socket_path)
+        with pytest.raises(RuntimeError, match="scalar summaries only"):
+            client.call("arm", {"hooks": ["*"], "capture_tensors": True})
+        with pytest.raises(RuntimeError, match="cannot be request-scoped"):
+            client.call("arm", {"hooks": ["*"], "request_ids": ["request-a"]})
+        with pytest.raises(RuntimeError, match="unavailable during CUDA Graph replay"):
+            client.call(
+                "break.set",
+                {"breakpoint_id": "stop", "hook": "block.0.residual.post"},
+            )
+    finally:
+        agent.close()
+
+
 def test_graph_control_rejects_request_scoped_patch(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

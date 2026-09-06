@@ -25,7 +25,7 @@ parallel topology before that combination is listed as verified.
 
 | Capability | Transformers eager | SGLang eager | vLLM eager | CUDA Graph replay |
 |---|---:|---:|---:|---:|
-| Normalized module trace | Yes | Implemented | Implemented | Not yet |
+| Normalized module trace | Yes | Implemented | Implemented | Experimental summaries |
 | Selective tensor capture | Yes | Implemented | Implemented | Not yet |
 | Global scalar activation patch | N/A | Implemented | Implemented | Experimental |
 | Global tensor activation patch | N/A | Implemented | Implemented | Not yet |
@@ -38,9 +38,11 @@ parallel topology before that combination is listed as verified.
 contract tests. It does not mean every model architecture or kernel backend has
 passed a real GPU acceptance run.
 
-"Experimental" means fixed-address graph control slots and CPU contract tests exist,
-but the path has not passed real CUDA Graph replay acceptance. Enable it explicitly
-with `LDB_CUDA_GRAPH=1`. It supports global scalar `scale`, `add`, and `ablate` only.
+"Experimental" means fixed-address graph control/trace slots and CPU contract tests
+exist, but the path has not passed real CUDA Graph replay acceptance. Enable it
+explicitly with `LDB_CUDA_GRAPH=1`. Patches support global scalar `scale`, `add`, and
+`ablate` only. Traces expose the latest scalar summary and replay occurrence count;
+they do not expose request IDs or full tensors.
 
 Expert-output hooks are available only when experts remain visible as individual
 PyTorch modules. LDB does not claim visibility inside an opaque fused-MoE kernel.

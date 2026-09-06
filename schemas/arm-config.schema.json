@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "capture_tensors": {
+      "default": false,
+      "title": "Capture Tensors",
+      "type": "boolean"
+    },
+    "hooks": {
+      "default": [
+        "*"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Hooks",
+      "type": "array"
+    },
+    "request_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Request Ids",
+      "type": "array"
+    }
+  },
+  "title": "ArmConfig",
+  "type": "object"
+}

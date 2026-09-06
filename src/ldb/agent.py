@@ -18,7 +18,7 @@ from typing import Any, cast
 from safetensors.torch import save_file
 
 from ldb.context import BatchContext, current_batch_context
-from ldb.graph import GraphControlSlot
+from ldb.graph import GraphControlSlot, GraphTraceSlot
 from ldb.interventions import apply_tensor_operation, load_intervention_tensor
 from ldb.live import (
     AgentCapability,
@@ -109,6 +109,8 @@ class AgentRuntime:
         self._patches: dict[str, LiveIntervention] = {}
         self._replacement_tensors: dict[str, Any] = {}
         self._graph_slots: dict[str, GraphControlSlot] = {}
+        self._graph_trace_slots: dict[str, GraphTraceSlot] = {}
+        self._graph_trace_seen: dict[str, int] = {}
         self._breakpoints: dict[str, LiveBreakpoint] = {}
         self._stopped: dict[str, BreakpointHit] = {}
         self._stopped_tensors: dict[str, Any] = {}
@@ -145,6 +147,7 @@ class AgentRuntime:
             capabilities.append(AgentCapability.MODEL_IDENTITY)
         if self.graph_control:
             capabilities.append(AgentCapability.PATCH_CUDA_GRAPH)
+            capabilities.append(AgentCapability.TRACE_CUDA_GRAPH)
         return AgentDescriptor(
             backend=self.backend,
             backend_version=self.backend_version,
@@ -211,11 +214,14 @@ class AgentRuntime:
         with self._lock:
             if hook not in self._graph_slots:
                 self._graph_slots[hook] = GraphControlSlot.create(reference)
+                self._graph_trace_slots[hook] = GraphTraceSlot.create(reference)
+                self._graph_trace_seen[hook] = 0
 
     def dispatch(self, method: str, params: Mapping[str, Any]) -> Any:
         if method == "hello":
             return self.descriptor.model_dump(mode="json")
         if method == "status":
+            self._flush_graph_trace_events()
             with self._lock:
                 return {
                     "descriptor": self.descriptor.model_dump(mode="json"),
@@ -239,6 +245,12 @@ class AgentRuntime:
         if method == "arm":
             arm = ArmConfig.model_validate(params)
             self._require_matching_hooks(arm.hooks)
+            if self.graph_control and arm.request_ids:
+                raise ValueError("CUDA Graph traces cannot be request-scoped")
+            if self.graph_control and arm.capture_tensors:
+                raise ValueError("CUDA Graph traces support scalar summaries only")
+            if self.graph_control:
+                self._reset_graph_trace_baseline()
             with self._lock:
                 self._arm = arm
             return arm.model_dump(mode="json")
@@ -248,12 +260,15 @@ class AgentRuntime:
             return {"armed": False}
         if method == "events":
             after = int(params.get("after", -1))
+            self._flush_graph_trace_events()
             with self._lock:
                 events = [event for event in self._events if event.sequence > after]
             return [event.model_dump(mode="json") for event in events]
         if method == "clear":
             with self._lock:
                 self._events.clear()
+            if self.graph_control:
+                self._reset_graph_trace_baseline()
             return {"event_count": 0}
         if method == "patch.set":
             patch = LiveIntervention.model_validate(params)
@@ -292,6 +307,8 @@ class AgentRuntime:
         if method == "break.set":
             breakpoint = LiveBreakpoint.model_validate(params)
             self._require_matching_hooks((breakpoint.hook,))
+            if self.graph_control:
+                raise ValueError("Breakpoints are unavailable during CUDA Graph replay")
             if breakpoint.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             with self._lock:
@@ -364,7 +381,9 @@ class AgentRuntime:
         selected_spans = _selected_spans(context, arm.request_ids)
         request_selected = not arm.request_ids or bool(selected_spans)
         layout_valid = not arm.request_ids or _spans_fit(tensor, selected_spans)
-        should_record = hook_selected and request_selected and layout_valid
+        should_record = (
+            not self.graph_control and hook_selected and request_selected and layout_valid
+        )
 
         for breakpoint in breakpoints:
             spans = _selected_spans(context, breakpoint.request_ids)
@@ -383,6 +402,7 @@ class AgentRuntime:
         if self.graph_control:
             modified = self._apply_graph_control(hook, tensor)
             patch_ids = [patch.patch_id for patch in patches]
+            self._observe_graph_trace(hook, tensor, modified)
         else:
             modified = tensor
             patch_ids = []
@@ -421,6 +441,69 @@ class AgentRuntime:
             with self._lock:
                 self._events.append(event)
         return modified
+
+    def _observe_graph_trace(self, hook: str, tensor: Any, patched: Any) -> None:
+        with self._lock:
+            slot = self._graph_trace_slots.get(hook)
+            if slot is None:
+                if tensor.device.type == "cuda":
+                    raise RuntimeError(f"CUDA Graph trace slot was not prepared for {hook}")
+                slot = GraphTraceSlot.create(tensor)
+                self._graph_trace_slots[hook] = slot
+                self._graph_trace_seen[hook] = 0
+        slot.observe(tensor, patched)
+
+    def _reset_graph_trace_baseline(self) -> None:
+        with self._lock:
+            slots = tuple(self._graph_trace_slots.items())
+        snapshots = [(hook, count) for hook, count, _, _ in self._snapshot_graph_trace_slots(slots)]
+        with self._lock:
+            self._graph_trace_seen.update(snapshots)
+
+    def _flush_graph_trace_events(self) -> None:
+        if not self.graph_control:
+            return
+        with self._lock:
+            arm = self._arm
+            slots = tuple(self._graph_trace_slots.items())
+        if not arm.hooks:
+            return
+        selected_slots = tuple(
+            (hook, slot)
+            for hook, slot in slots
+            if any(fnmatch.fnmatchcase(hook, pattern) for pattern in arm.hooks)
+        )
+        snapshots = self._snapshot_graph_trace_slots(selected_slots)
+        for hook, count, summary, patched_summary in snapshots:
+            with self._lock:
+                previous = self._graph_trace_seen.get(hook, count)
+                self._graph_trace_seen[hook] = count
+                if count <= previous:
+                    continue
+                sequence = self._sequence
+                self._sequence += 1
+                self._events.append(
+                    LiveTraceEvent(
+                        sequence=sequence,
+                        hook=hook,
+                        rank=self.rank,
+                        summary=summary,
+                        patched_summary=patched_summary,
+                        source="cuda_graph",
+                        occurrences=count - previous,
+                    )
+                )
+
+    @staticmethod
+    def _snapshot_graph_trace_slots(
+        slots: tuple[tuple[str, GraphTraceSlot], ...],
+    ) -> list[tuple[str, int, Any, Any]]:
+        import torch
+
+        devices = {slot.counter.device for _, slot in slots if slot.counter.device.type == "cuda"}
+        for device in devices:
+            torch.cuda.synchronize(device)
+        return [(hook, *slot.snapshot(synchronize=False)) for hook, slot in slots]
 
     def _apply_graph_control(self, hook: str, tensor: Any) -> Any:
         with self._lock:

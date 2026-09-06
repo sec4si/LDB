@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "breakpoint_id": {
+      "title": "Breakpoint Id",
+      "type": "string"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "hook": {
+      "title": "Hook",
+      "type": "string"
+    },
+    "request_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Request Ids",
+      "type": "array"
+    },
+    "timeout_seconds": {
+      "default": 300.0,
+      "exclusiveMinimum": 0.0,
+      "maximum": 3600.0,
+      "title": "Timeout Seconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "breakpoint_id",
+    "hook"
+  ],
+  "title": "LiveBreakpoint",
+  "type": "object"
+}

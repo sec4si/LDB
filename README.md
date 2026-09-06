@@ -32,11 +32,11 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - request-scoped single-feature SAE scaling;
 - regression-aware patch search, reproducible export, and verification;
 - bounded heterogeneous multi-intervention search with an explicit no-op;
-- opt-in fixed-address CUDA Graph control slots for global scalar patches.
+- opt-in fixed-address CUDA Graph control and summary-trace slots.
 
-Scheduler-isolated single-request breakpoints and CUDA Graph trace capture are not
-yet implemented. Live trace events and request-scoped interventions currently
-require an eager execution path.
+Scheduler-isolated single-request breakpoints are not yet implemented. CUDA Graph
+summary traces and global scalar patches are experimental; request-scoped traces,
+full tensor capture, and breakpoints require an eager execution path.
 
 ## Installation
 
@@ -98,9 +98,10 @@ LDB_ENABLE=1 VLLM_PLUGINS=ldb \
   vllm serve <model> --enforce-eager
 ```
 
-For experimental global scalar patches during CUDA Graph replay, set
-`LDB_CUDA_GRAPH=1` and omit `--disable-cuda-graph` / `--enforce-eager`. Trace events,
-breakpoints, tensor patches, and request-scoped patches still require eager mode.
+For experimental summaries and global scalar patches during CUDA Graph replay, set
+`LDB_CUDA_GRAPH=1` and omit `--disable-cuda-graph` / `--enforce-eager`. Full tensor
+capture, breakpoints, tensor patches, and request-scoped controls still require
+eager mode.
 
 Attach from another terminal:
 

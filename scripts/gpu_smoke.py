@@ -87,9 +87,16 @@ def main() -> None:
                     )
             else:
                 hello = _ldb(agents, "status")
-                if "patch.cuda_graph" not in hello:
-                    raise RuntimeError("Agent did not advertise CUDA Graph patch capability")
+                for capability in ("trace.cuda_graph", "patch.cuda_graph"):
+                    if capability not in hello:
+                        raise RuntimeError(
+                            f"Agent did not advertise CUDA Graph capability {capability}"
+                        )
+                _ldb(agents, "arm 'block.0.residual.post'")
                 baseline = _completion(args.port, args.model)
+                events = _ldb(agents, "events")
+                if "block.0.residual.post" not in events or "cuda_graph" not in events:
+                    raise RuntimeError("CUDA Graph replay did not update the trace summary slot")
                 _ldb(agents, "patch-set graph-ablate block.0.residual.post ablate")
                 patched = _completion(args.port, args.model)
                 if baseline["choices"] == patched["choices"]:

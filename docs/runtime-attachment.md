@@ -94,8 +94,9 @@ visible MoE gates.
 
 Python hooks do not execute during CUDA Graph replay. Operators must use
 `--disable-cuda-graph` for complete live traces. With `LDB_CUDA_GRAPH=1`, LDB installs
-fixed-address scalar control slots before graph capture; captured operations read
-those buffers during replay even though the Python hook does not run.
+fixed-address scalar control and summary slots before graph capture; captured
+operations read control buffers and update summary buffers during replay even though
+the Python hook does not run.
 
 ### vLLM
 
@@ -103,15 +104,22 @@ The `vllm.general_plugins` entry point wraps the V1 GPU worker's model-load boun
 and installs the same normalized probes. The plugin is loaded only when both
 `LDB_ENABLE=1` and `VLLM_PLUGINS=ldb` are present.
 
-`--enforce-eager` is currently required for complete traces. The agent reports
-`execution.eager_only` so clients cannot mistake a partial CUDA Graph trace for a
-complete trace. `LDB_CUDA_GRAPH=1` additionally reports `patch.cuda_graph` and enables
-the same fixed-address scalar control slots before vLLM captures the model.
+`--enforce-eager` is currently required for request-aware or full-tensor traces. The
+agent reports `execution.eager_only` for those capabilities. `LDB_CUDA_GRAPH=1`
+additionally reports `trace.cuda_graph` and `patch.cuda_graph`, enabling fixed-address
+summary and scalar control slots before vLLM captures the model.
 
 Graph control composes global scalar `scale`, `add`, and `ablate` patches in install
 order. It rejects request filters, tensor replacement, and expert routing because
 those operations require dynamic layouts that the current graph slot does not
 represent. Updating a slot synchronizes its device before the control call returns.
+
+Graph summary slots compute mean, population standard deviation, and norm on device,
+then increment a fixed device counter on every replay. `arm` snapshots those counters;
+later `events` calls synchronize only the slot outputs and emit the most recent
+summary plus the number of occurrences since the last poll. Graph trace events are
+labeled `source: cuda_graph`. Request filtering and full tensor capture are rejected
+instead of silently degrading.
 
 ## Current safety boundary
 
