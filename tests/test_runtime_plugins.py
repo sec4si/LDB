@@ -17,8 +17,22 @@ def test_sglang_plugin_registers_worker_initialization_hook(monkeypatch) -> None
         HookRegistry=SimpleNamespace(register=lambda *args: calls.append(args)),
         HookType=SimpleNamespace(AFTER="after", AROUND="around"),
     )
+    worker_module = SimpleNamespace(TpModelWorker=type("TpModelWorker", (), {}))
+    runner_module = SimpleNamespace(
+        ModelRunner=type("ModelRunner", (), {"forward": lambda self: None})
+    )
+
+    def import_module(name):
+        if name == "sglang.srt.plugins.hook_registry":
+            return registry
+        if name == "sglang.srt.managers.tp_worker":
+            return worker_module
+        if name == "sglang.srt.model_executor.model_runner":
+            return runner_module
+        raise ImportError(name)
+
     monkeypatch.setenv("LDB_ENABLE", "1")
-    monkeypatch.setattr(sglang_adapter.importlib, "import_module", lambda _: registry)
+    monkeypatch.setattr(sglang_adapter.importlib, "import_module", import_module)
 
     sglang_adapter.register_plugin()
 
@@ -26,6 +40,27 @@ def test_sglang_plugin_registers_worker_initialization_hook(monkeypatch) -> None
     assert calls[0][2] == "after"
     assert calls[1][0] == "sglang.srt.model_executor.model_runner.ModelRunner.forward"
     assert calls[1][2] == "around"
+
+
+def test_sglang_plugin_fails_closed_without_forward_boundary(monkeypatch) -> None:
+    modules = {
+        "sglang.srt.plugins.hook_registry": SimpleNamespace(),
+        "sglang.srt.managers.tp_worker": SimpleNamespace(
+            TpModelWorker=type("TpModelWorker", (), {})
+        ),
+        "sglang.srt.model_executor.model_runner": SimpleNamespace(
+            ModelRunner=type("ModelRunner", (), {})
+        ),
+    }
+    monkeypatch.setenv("LDB_ENABLE", "1")
+    monkeypatch.setattr(sglang_adapter.importlib, "import_module", modules.__getitem__)
+
+    try:
+        sglang_adapter.register_plugin()
+    except RuntimeError as exc:
+        assert "ModelRunner.forward is unavailable" in str(exc)
+    else:
+        raise AssertionError("SGLang plugin accepted a runtime without its forward boundary")
 
 
 def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
@@ -50,12 +85,19 @@ def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
         def load_model(self) -> str:
             return "loaded"
 
+    class GPUModelRunner:
+        def execute_model(self, scheduler_output):
+            return scheduler_output
+
+    def import_module(name):
+        if name == "vllm.v1.worker.gpu_worker":
+            return SimpleNamespace(Worker=Worker)
+        if name == "vllm.v1.worker.gpu_model_runner":
+            return SimpleNamespace(GPUModelRunner=GPUModelRunner)
+        raise ImportError(name)
+
     monkeypatch.setenv("LDB_ENABLE", "1")
-    monkeypatch.setattr(
-        vllm_adapter.importlib,
-        "import_module",
-        lambda _: SimpleNamespace(Worker=Worker),
-    )
+    monkeypatch.setattr(vllm_adapter.importlib, "import_module", import_module)
     monkeypatch.setattr(
         vllm_adapter,
         "install_model_runtime",
@@ -68,6 +110,27 @@ def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
     assert result == "loaded"
     assert installed[0][1]["backend"] == "vllm"
     assert installed[0][1]["model_id"] == "test-model"
+
+
+def test_vllm_plugin_fails_closed_without_request_context_boundary(monkeypatch) -> None:
+    class Worker:
+        def load_model(self) -> None:
+            return None
+
+    def import_module(name):
+        if name == "vllm.v1.worker.gpu_worker":
+            return SimpleNamespace(Worker=Worker)
+        raise ImportError(name)
+
+    monkeypatch.setenv("LDB_ENABLE", "1")
+    monkeypatch.setattr(vllm_adapter.importlib, "import_module", import_module)
+
+    try:
+        vllm_adapter.register_plugin()
+    except RuntimeError as exc:
+        assert "no known GPUModelRunner.execute_model boundary" in str(exc)
+    else:
+        raise AssertionError("vLLM plugin accepted a runtime without request context")
 
 
 def test_vllm_runner_context_is_resolved_inside_execute_model(monkeypatch) -> None:

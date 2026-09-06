@@ -20,11 +20,17 @@ def register_plugin() -> None:
     worker_module = importlib.import_module("vllm.v1.worker.gpu_worker")
     worker_class = worker_module.Worker
 
-    for module_path in (
-        "vllm.v1.worker.gpu_model_runner",
-        "vllm.v1.worker.gpu.model_runner",
-    ):
+    runner_boundaries = [
         _wrap_model_runner(module_path)
+        for module_path in (
+            "vllm.v1.worker.gpu_model_runner",
+            "vllm.v1.worker.gpu.model_runner",
+        )
+    ]
+    if not any(runner_boundaries):
+        raise RuntimeError(
+            "Unsupported vLLM runtime: no known GPUModelRunner.execute_model boundary"
+        )
 
     original = worker_class.load_model
     if getattr(original, "_ldb_wrapped", False):
@@ -65,15 +71,15 @@ def register_plugin() -> None:
     worker_class.load_model = load_model
 
 
-def _wrap_model_runner(module_path: str) -> None:
+def _wrap_model_runner(module_path: str) -> bool:
     try:
         module = importlib.import_module(module_path)
         runner_class = module.GPUModelRunner
     except (ImportError, AttributeError):
-        return
+        return False
     original = runner_class.execute_model
     if getattr(original, "_ldb_wrapped", False):
-        return
+        return True
 
     @functools.wraps(original)
     def execute_model(runner: Any, scheduler_output: Any, *args: Any, **kwargs: Any) -> Any:
@@ -85,3 +91,4 @@ def _wrap_model_runner(module_path: str) -> None:
 
     execute_model._ldb_wrapped = True  # type: ignore[attr-defined]
     runner_class.execute_model = execute_model
+    return True

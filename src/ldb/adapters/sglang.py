@@ -17,6 +17,12 @@ def register_plugin() -> None:
         return
 
     registry = importlib.import_module("sglang.srt.plugins.hook_registry")
+    worker_module = importlib.import_module("sglang.srt.managers.tp_worker")
+    runner_module = importlib.import_module("sglang.srt.model_executor.model_runner")
+    if not hasattr(getattr(worker_module, "TpModelWorker", None), "__init__"):
+        raise RuntimeError("Unsupported SGLang runtime: TpModelWorker.__init__ is unavailable")
+    if not hasattr(getattr(runner_module, "ModelRunner", None), "forward"):
+        raise RuntimeError("Unsupported SGLang runtime: ModelRunner.forward is unavailable")
 
     registry.HookRegistry.register(
         "sglang.srt.managers.tp_worker.TpModelWorker.__init__",

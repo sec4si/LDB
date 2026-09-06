@@ -4,6 +4,12 @@ LDB runtime adapters intentionally depend on a small set of serving-runtime
 boundaries. The adapter must fail closed when these boundaries disappear instead of
 silently tracing the wrong tensors.
 
+The plugins refuse startup if their audited worker/model-forward boundaries are
+missing. Continuing would otherwise advertise request-scoped traces and patches
+without authoritative batch context. This explicit check is necessary for SGLang
+because its hook registry logs target-resolution failures instead of propagating
+them to the plugin loader.
+
 ## Source-audited snapshots
 
 | Runtime | Upstream commit | Required boundaries |
