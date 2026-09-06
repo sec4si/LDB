@@ -2,17 +2,15 @@
 
 ## Scope
 
-LDB is a CLI-first runtime debugger for model internals. Version 0.1 focuses on a
-single-process Hugging Face eager-mode vertical slice. The public domain model is
-designed so that the CLI and target runtime can later be split into `ldb` and
-`ldb-agent` processes without changing artifact formats.
+LDB is a CLI-first runtime debugger for model internals. Version 0.1 includes a
+single-process Hugging Face causal-analysis path and prepared in-process agents for
+SGLang and vLLM workers. The CLI and target runtime communicate through a versioned
+local protocol without coupling artifact formats to a serving engine.
 
 Out of scope for v0.1:
 
 - web interfaces and application-level LLM observability;
 - `torch.compile`, fused-kernel internals, and mid-kernel suspension;
-- tensor parallelism and distributed inference;
-- vLLM and SGLang runtime adapters;
 - permanent weight editing;
 - automatic sparse autoencoder training.
 
@@ -52,8 +50,8 @@ never imply that it can suspend execution inside an opaque CUDA kernel.
 
 ## Control and data planes
 
-The future multi-process design uses a versioned Protobuf control protocol over a
-Unix domain socket. Control messages carry commands, events, metadata, and tensor
+The multi-process design uses a versioned JSON-lines control protocol over a Unix
+domain socket. Control messages carry commands, events, metadata, and tensor
 references. Bulk tensors are stored outside the control channel.
 
 Version 0.1 now supports a prepared in-process agent controlled through a
@@ -81,8 +79,8 @@ Only a successful intervention may promote a finding to `causally_tested`.
 ## Implementation order
 
 1. RunBundle, normalized hook topology, real inference trace, and patch validation.
-2. Interactive target thread with safe-point breakpoints and watches.
-3. Clean/corrupt replay, ablation, and activation patching.
-4. Regression suites and minimal patch search.
-5. Out-of-process agent protocol.
-6. vLLM, SGLang, SAE, and MoE plugins.
+2. Out-of-process control of prepared vLLM and SGLang worker agents.
+3. Interactive safe-point breakpoints and request-scoped live interventions.
+4. Clean/corrupt replay, ablation, and activation patching.
+5. Regression suites and minimal patch search.
+6. CUDA Graph, SAE, and deeper MoE instrumentation.

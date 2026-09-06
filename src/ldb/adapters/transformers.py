@@ -7,7 +7,7 @@ from importlib.metadata import version
 from typing import Any, cast
 
 from ldb.models import HookPhase, HookPoint
-from ldb.runtime import ProbeCallback, ProbeHandle
+from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
 
 
 def _first_tensor(value: Any) -> Any:
@@ -21,6 +21,30 @@ def _first_tensor(value: Any) -> Any:
             if tensor is not None:
                 return tensor
     return None
+
+
+def _replace_first_tensor(value: Any, replacement: Any) -> tuple[Any, bool]:
+    import torch
+
+    if isinstance(value, torch.Tensor):
+        if value.shape != replacement.shape:
+            raise ValueError(
+                f"Replacement shape {tuple(replacement.shape)} does not match {tuple(value.shape)}"
+            )
+        return replacement.to(device=value.device, dtype=value.dtype), True
+    if isinstance(value, tuple):
+        items = list(value)
+        for index, item in enumerate(items):
+            items[index], replaced = _replace_first_tensor(item, replacement)
+            if replaced:
+                return tuple(items), True
+    elif isinstance(value, list):
+        items = list(value)
+        for index, item in enumerate(items):
+            items[index], replaced = _replace_first_tensor(item, replacement)
+            if replaced:
+                return items, True
+    return value, False
 
 
 class TransformersAdapter:
@@ -46,6 +70,10 @@ class TransformersAdapter:
     @property
     def model_id(self) -> str:
         return self._model_id
+
+    @property
+    def backend(self) -> str:
+        return "transformers"
 
     @property
     def backend_version(self) -> str:
@@ -126,6 +154,31 @@ class TransformersAdapter:
 
         return cast(ProbeHandle, module.register_forward_hook(post_hook))
 
+    def install_intervention(self, hook: HookPoint, callback: InterventionCallback) -> ProbeHandle:
+        module = self._module_by_path[hook.module_path]
+
+        if hook.phase is HookPhase.PRE:
+
+            def pre_hook(_: Any, inputs: tuple[Any, ...]) -> tuple[Any, ...]:
+                tensor = _first_tensor(inputs)
+                if tensor is None:
+                    return inputs
+                replacement = callback(hook, tensor)
+                updated, replaced = _replace_first_tensor(inputs, replacement)
+                return cast(tuple[Any, ...], updated if replaced else inputs)
+
+            return cast(ProbeHandle, module.register_forward_pre_hook(pre_hook))
+
+        def post_hook(_: Any, __: tuple[Any, ...], output: Any) -> Any:
+            tensor = _first_tensor(output)
+            if tensor is None:
+                return output
+            replacement = callback(hook, tensor)
+            updated, replaced = _replace_first_tensor(output, replacement)
+            return updated if replaced else output
+
+        return cast(ProbeHandle, module.register_forward_hook(post_hook))
+
     def tokenize(self, prompt: str) -> Sequence[int]:
         encoded = self.tokenizer(prompt, return_tensors="pt")
         return tuple(int(token) for token in encoded["input_ids"][0])
@@ -142,3 +195,15 @@ class TransformersAdapter:
                 pad_token_id=self.tokenizer.eos_token_id,
             )
         return str(self.tokenizer.decode(output[0], skip_special_tokens=True))
+
+    def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
+        import torch
+
+        encoded = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        with torch.inference_mode():
+            logits = self.model(**encoded).logits[:, -1, :]
+            if target_token_id < 0 or target_token_id >= logits.shape[-1]:
+                raise ValueError(
+                    f"Target token ID {target_token_id} is outside the model vocabulary"
+                )
+            return float(torch.log_softmax(logits.float(), dim=-1)[0, target_token_id].item())

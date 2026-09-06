@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
-from ldb.adapters.transformers import TransformersAdapter
+import pytest
+
+from ldb.adapters.transformers import TransformersAdapter, _replace_first_tensor
+
+torch = pytest.importorskip("torch")
 
 
 class SizedModule:
@@ -35,3 +39,17 @@ def test_discovers_gpt2_hook_points() -> None:
     assert len(hooks) == 8
     assert hooks[0].name == "block.0.residual.pre"
     assert hooks[-1].name == "block.1.mlp.output"
+
+
+def test_replace_first_tensor_preserves_nested_output() -> None:
+    output, replaced = _replace_first_tensor(
+        (torch.tensor([[1.0, 2.0]]), ("cache",)), torch.tensor([[3.0, 4.0]])
+    )
+    assert replaced is True
+    assert output[0].tolist() == [[3.0, 4.0]]
+    assert output[1] == ("cache",)
+
+
+def test_replace_first_tensor_rejects_shape_mismatch() -> None:
+    with pytest.raises(ValueError, match="Replacement shape"):
+        _replace_first_tensor(torch.zeros(2), torch.zeros(3))

@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ldb import __version__
+from ldb.causal import causal_trace
 from ldb.client import AgentGroupClient
 from ldb.models import HookPoint, RunManifest
 from ldb.patches import load_patch
@@ -132,6 +133,53 @@ def inspect(bundle: Annotated[Path, typer.Argument(exists=True, file_okay=False)
             "yes" if event.tensor_file else "no",
         )
     console.print(table)
+
+
+@app.command()
+def causal(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    clean_prompt: Annotated[str, typer.Option("--clean-prompt")],
+    corrupt_prompt: Annotated[str, typer.Option("--corrupt-prompt")],
+    target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
+    hook: Annotated[
+        list[str] | None,
+        typer.Option("--hook", help="Glob selecting causal patch candidates"),
+    ] = None,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Localize a next-token behavior with clean/corrupt activation patching."""
+
+    from ldb.adapters.transformers import TransformersAdapter
+
+    adapter = TransformersAdapter(model, revision=revision, device=device)
+    report = causal_trace(
+        adapter,
+        clean_prompt=clean_prompt,
+        corrupt_prompt=corrupt_prompt,
+        target_token_id=target_token_id,
+        hook_globs=hook or ["block.*.residual.post"],
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+    table = Table("Hook", "Patched log P", "Effect", "Recovery")
+    for trial in report.trials:
+        table.add_row(
+            trial.hook,
+            f"{trial.patched_log_probability:.6g}",
+            f"{trial.effect:+.6g}",
+            f"{trial.recovery:.2%}" if trial.recovery is not None else "-",
+        )
+    console.print(
+        f"Clean log P: {report.clean_log_probability:.6g}  "
+        f"Corrupt log P: {report.corrupt_log_probability:.6g}"
+    )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
 
 
 def _run_agent_command(client: AgentGroupClient, command: str) -> bool:

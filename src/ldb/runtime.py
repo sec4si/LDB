@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from ldb.models import HookPoint
 
 ProbeCallback = Callable[[HookPoint, Any], None]
+InterventionCallback = Callable[[HookPoint, Any], Any]
 
 
 class ProbeHandle(Protocol):
@@ -27,6 +28,12 @@ class RuntimeAdapter(Protocol):
 
     def install_probe(self, hook: HookPoint, callback: ProbeCallback) -> ProbeHandle: ...
 
+    def install_intervention(
+        self, hook: HookPoint, callback: InterventionCallback
+    ) -> ProbeHandle: ...
+
     def tokenize(self, prompt: str) -> Sequence[int]: ...
 
     def generate(self, prompt: str, *, max_new_tokens: int) -> str: ...
+
+    def next_token_log_probability(self, prompt: str, target_token_id: int) -> float: ...

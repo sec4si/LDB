@@ -22,12 +22,14 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - validating versioned Neural Patch documents.
 - attaching the CLI to dormant in-process agents over local Unix sockets;
 - loading opt-in SGLang and vLLM runtime plugins;
-- recording bounded live traces and applying reversible activation scale, add,
-  and ablation interventions on eager execution paths.
+- recording bounded live traces and applying reversible scalar, tensor, and
+  expert-routing interventions on eager execution paths;
+- request-filtered traces, request-scoped patches, and bounded batch breakpoints;
+- clean/corrupt activation patching for causal next-token localization.
 
-Request-scoped breakpoints, causal replay, patch search, and CUDA Graph-aware
-interventions are not yet implemented. Live activation hooks currently require an
-eager execution path.
+Scheduler-isolated single-request breakpoints, automated patch search, regression
+suites, and CUDA Graph-aware interventions are not yet implemented. Live activation
+hooks currently require an eager execution path.
 
 ## Installation
 
@@ -49,6 +51,12 @@ ldb run sshleifer/tiny-gpt2 \
 
 ldb inspect runs/<run-id>
 ldb patch validate examples/patches/scale-feature.yaml
+
+ldb causal sshleifer/tiny-gpt2 \
+  --clean-prompt "The Eiffel Tower is in" \
+  --corrupt-prompt "The Eiffel Tower is on" \
+  --target-token-id 16046 \
+  --output causal-report.json
 ```
 
 `ldb run` records scalar summaries for every normalized hook point. Full tensors are
