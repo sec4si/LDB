@@ -77,6 +77,8 @@ SGLang:
 
 ```console
 LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
+  LDB_MODEL_REVISION=<immutable-model-revision> \
+  LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   sglang serve --model-path <model> --disable-cuda-graph
 ```
 
@@ -84,6 +86,8 @@ vLLM:
 
 ```console
 LDB_ENABLE=1 VLLM_PLUGINS=ldb \
+  LDB_MODEL_REVISION=<immutable-model-revision> \
+  LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   vllm serve <model> --enforce-eager
 ```
 

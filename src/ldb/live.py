@@ -20,6 +20,7 @@ class AgentCapability(StrEnum):
     PATCH_REQUEST_SCOPED = "patch.request_scoped"
     BREAKPOINT_BATCH = "breakpoint.batch"
     EAGER_ONLY = "execution.eager_only"
+    MODEL_IDENTITY = "model.identity"
 
 
 class AgentDescriptor(FrozenModel):
@@ -27,6 +28,8 @@ class AgentDescriptor(FrozenModel):
     backend: str
     backend_version: str
     model_id: str
+    model_revision: str | None = None
+    tokenizer_hash: str | None = None
     pid: int = Field(gt=0)
     rank: int = Field(ge=0)
     world_size: int = Field(gt=0)

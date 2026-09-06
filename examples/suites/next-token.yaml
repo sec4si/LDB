@@ -5,6 +5,11 @@ target:
     prompt: The Eiffel Tower is in
     target_token_id: 16046
 
+related:
+  - case_id: related-eiffel
+    prompt: Paris is home to the Eiffel Tower, located in
+    target_token_id: 220
+
 regression:
   - case_id: control-water
     prompt: Water freezes at

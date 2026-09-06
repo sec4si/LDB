@@ -50,6 +50,7 @@ def _after_worker_init(result: Any, worker: Any, *_: Any, **__: Any) -> Any:
         model_id=model_id,
         config={
             "request_context": True,
+            "model_revision": getattr(getattr(model, "config", None), "_commit_hash", None),
             "rank": rank,
             "world_size": tp_size * pp_size * dp_size,
             "topology": {

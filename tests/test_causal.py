@@ -24,6 +24,7 @@ class FakeRuntime:
         self.model_id = "fake-model"
         self.backend = "fake"
         self.backend_version = "1"
+        self.tokenizer_hash = "tokenizer-hash"
         self.revision: str | None = "fake-revision"
         self.hooks = (
             HookPoint(name="block.0.residual.post", module_path="a", phase=HookPhase.POST),

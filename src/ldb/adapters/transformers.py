@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Sequence
 from importlib.metadata import version
 from typing import Any, cast
@@ -62,6 +64,7 @@ class TransformersAdapter:
         model_factory = cast(Any, AutoModelForCausalLM)
         self.tokenizer: Any = tokenizer_factory.from_pretrained(model_id, revision=revision)
         self.model: Any = model_factory.from_pretrained(model_id, revision=revision)
+        self.revision = getattr(self.model.config, "_commit_hash", None) or revision
         self.model.to(device)
         self.model.eval()
         self._module_by_path = dict(self.model.named_modules())
@@ -78,6 +81,21 @@ class TransformersAdapter:
     @property
     def backend_version(self) -> str:
         return version("transformers")
+
+    @property
+    def tokenizer_hash(self) -> str:
+        backend = getattr(self.tokenizer, "backend_tokenizer", None)
+        backend_json = backend.to_str() if backend is not None else None
+        payload = json.dumps(
+            {
+                "backend": backend_json,
+                "special_tokens_map": self.tokenizer.special_tokens_map,
+                "chat_template": getattr(self.tokenizer, "chat_template", None),
+            },
+            sort_keys=True,
+            ensure_ascii=True,
+        ).encode()
+        return hashlib.sha256(payload).hexdigest()
 
     def _block_path(self) -> str:
         candidates = ("transformer.h", "model.layers", "model.model.layers")

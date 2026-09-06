@@ -49,6 +49,7 @@ def register_plugin() -> None:
             model_id=str(model_config.model),
             config={
                 "request_context": True,
+                "model_revision": getattr(getattr(model, "config", None), "_commit_hash", None),
                 "rank": int(getattr(worker, "rank", 0)),
                 "world_size": world_size,
                 "topology": {

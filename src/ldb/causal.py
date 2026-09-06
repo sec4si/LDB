@@ -23,6 +23,9 @@ class CausalRuntime(Protocol):
     @property
     def backend_version(self) -> str: ...
 
+    @property
+    def tokenizer_hash(self) -> str: ...
+
     revision: str | None
 
     def hook_points(self) -> Sequence[HookPoint]: ...
@@ -50,6 +53,7 @@ class CausalReport(FrozenModel):
     model_revision: str | None = None
     backend: str
     backend_version: str
+    tokenizer_hash: str
     hook_schema_version: str = HOOK_SCHEMA_VERSION
     clean_prompt: str
     corrupt_prompt: str
@@ -125,6 +129,7 @@ def causal_trace(
         model_revision=runtime.revision,
         backend=runtime.backend,
         backend_version=runtime.backend_version,
+        tokenizer_hash=runtime.tokenizer_hash,
         clean_prompt=clean_prompt,
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,

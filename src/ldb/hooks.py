@@ -18,6 +18,13 @@ def _environment_int(name: str, default: int) -> int:
     return int(value) if value is not None else default
 
 
+def _configured_string(values: Mapping[str, Any], key: str, environment_name: str) -> str | None:
+    value = values.get(key)
+    if value is None:
+        value = os.environ.get(environment_name)
+    return str(value) if value is not None else None
+
+
 def get_or_create_agent(
     *,
     backend: str,
@@ -46,6 +53,8 @@ def get_or_create_agent(
         backend=backend,
         backend_version=backend_version,
         model_id=model_id,
+        model_revision=_configured_string(values, "model_revision", "LDB_MODEL_REVISION"),
+        tokenizer_hash=_configured_string(values, "tokenizer_hash", "LDB_TOKENIZER_HASH"),
         socket_dir=socket_dir,
         output_dir=output_dir,
         rank=rank,

@@ -57,9 +57,12 @@ the serving worker's filesystem and must contain either one tensor or a tensor n
 ```
 
 `patch-load` validates the versioned Neural Patch, checks its model ID against every
-connected worker, resolves tensor paths relative to the patch document, and rolls
-back interventions already installed if a later intervention or rank fails. A
-request-scoped intervention cannot be loaded without at least one `--request`.
+connected worker, requires exact model revision and tokenizer hash matches, resolves
+tensor paths relative to the patch document, and rolls back interventions already
+installed if a later intervention or rank fails. A request-scoped intervention
+cannot be loaded without at least one `--request`. Set `LDB_MODEL_REVISION` and
+`LDB_TOKENIZER_HASH` at server startup when the serving engine does not expose those
+immutable identities from the loaded model.
 
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control

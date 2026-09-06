@@ -15,11 +15,12 @@ from rich.table import Table
 from ldb import __version__
 from ldb.causal import causal_trace
 from ldb.client import AgentGroupClient
-from ldb.models import HookPoint, RunManifest
-from ldb.patches import load_patch
+from ldb.models import HookPoint, RunManifest, ValidationSummary
+from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
-from ldb.search import load_suite, search_scale_patches
+from ldb.search import load_suite, patch_from_search, search_scale_patches
 from ldb.trace import RunBundleRecorder, load_events, load_manifest
+from ldb.verification import verify_patch
 
 app = typer.Typer(no_args_is_help=True, help="Debug latent state in large language models.")
 patch_app = typer.Typer(no_args_is_help=True, help="Validate and manage Neural Patches.")
@@ -99,7 +100,7 @@ def run(
         manifest = RunManifest(
             run_id=recorder.run_id,
             model_id=model,
-            model_revision=revision,
+            model_revision=adapter.revision,
             tokenizer_id=model,
             backend="transformers",
             backend_version=adapter.backend_version,
@@ -167,7 +168,6 @@ def causal(
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
-
     table = Table("Hook", "Patched log P", "Effect", "Recovery")
     for trial in report.trials:
         table.add_row(
@@ -200,6 +200,9 @@ def search_patches(
     regression_weight: Annotated[float, typer.Option("--regression-weight", min=0.0)] = 1.0,
     complexity_weight: Annotated[float, typer.Option("--complexity-weight", min=0.0)] = 0.01,
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    patch_output: Annotated[
+        Path | None, typer.Option("--patch-output", help="Write the best Neural Patch")
+    ] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
 ) -> None:
@@ -219,6 +222,8 @@ def search_patches(
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if patch_output is not None:
+        write_patch(patch_output, patch_from_search(report))
 
     table = Table("Hook", "Scale", "Target gain", "Regression loss", "Objective")
     for trial in report.trials[:20]:
@@ -232,6 +237,8 @@ def search_patches(
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")
+    if patch_output is not None:
+        console.print(f"Neural Patch: [bold]{patch_output}[/bold]")
 
 
 def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
@@ -328,6 +335,21 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
         raise ValueError(
             f"Patch targets {patch.model_id!r}, but agents serve {', '.join(mismatched)}"
         )
+    if any(
+        descriptor.get("model_revision") is None or descriptor.get("tokenizer_hash") is None
+        for descriptor in descriptors
+    ):
+        raise ValueError(
+            "Versioned patch loading requires model revision and tokenizer hash from every agent"
+        )
+    revisions = {str(descriptor["model_revision"]) for descriptor in descriptors}
+    tokenizer_hashes = {str(descriptor["tokenizer_hash"]) for descriptor in descriptors}
+    if revisions != {patch.model_revision}:
+        raise ValueError(
+            f"Patch revision {patch.model_revision!r} does not match agents: {sorted(revisions)}"
+        )
+    if tokenizer_hashes != {patch.tokenizer_hash}:
+        raise ValueError("Patch tokenizer hash does not match the attached agents")
 
     installed: list[str] = []
     try:
@@ -485,6 +507,68 @@ def validate_patch(path: Annotated[Path, typer.Argument(exists=True, dir_okay=Fa
         f"Valid {patch.schema_version}: [bold]{patch.patch_id}[/bold] "
         f"({len(patch.interventions)} intervention(s))"
     )
+
+
+@patch_app.command("verify")
+def verify_neural_patch(
+    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    suite: Annotated[Path, typer.Option("--suite", exists=True, dir_okay=False)],
+    target_min_gain: Annotated[float, typer.Option("--target-min-gain")] = 0.0,
+    related_min_gain: Annotated[float, typer.Option("--related-min-gain")] = 0.0,
+    regression_max_drop: Annotated[float, typer.Option("--regression-max-drop", min=0.0)] = 0.05,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    verified_patch_output: Annotated[
+        Path | None,
+        typer.Option("--verified-patch-output", help="Write patch with validation results"),
+    ] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Verify a Neural Patch against target and regression cases."""
+
+    from ldb.adapters.transformers import TransformersAdapter
+
+    patch = load_patch(path)
+    adapter = TransformersAdapter(patch.model_id, revision=patch.model_revision, device=device)
+    report = verify_patch(
+        adapter,
+        patch,
+        load_suite(suite),
+        patch_directory=path.parent,
+        target_min_gain=target_min_gain,
+        related_min_gain=related_min_gain,
+        regression_max_drop=regression_max_drop,
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if report.passed and verified_patch_output is not None:
+        verified = patch.model_copy(
+            update={
+                "validation": ValidationSummary(
+                    target_success=report.target_success,
+                    related_generalization=report.related_generalization,
+                    unrelated_regression=report.unrelated_regression,
+                )
+            }
+        )
+        write_patch(verified_patch_output, verified)
+    color = "green" if report.passed else "red"
+    related = (
+        f" related={report.related_generalization:.1%}"
+        if report.related_generalization is not None
+        else ""
+    )
+    console.print(
+        f"[{color}]{'PASS' if report.passed else 'FAIL'}[/{color}] "
+        f"target={report.target_success:.1%}{related} "
+        f"worst_regression={report.unrelated_regression:+.6g}"
+    )
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+    if report.passed and verified_patch_output is not None:
+        console.print(f"Verified Neural Patch: [bold]{verified_patch_output}[/bold]")
+    if not report.passed:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

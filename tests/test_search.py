@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from ldb.models import HookPhase, HookPoint
-from ldb.search import BehaviorCase, EvaluationSuite, search_scale_patches
+from ldb.search import BehaviorCase, EvaluationSuite, patch_from_search, search_scale_patches
 
 
 class Handle:
@@ -23,6 +23,7 @@ class SearchRuntime:
     revision = "revision"
     backend = "fake"
     backend_version = "1"
+    tokenizer_hash = "tokenizer-hash"
 
     def __init__(self) -> None:
         self.hook = HookPoint(
@@ -69,9 +70,23 @@ def test_search_balances_target_gain_regression_and_complexity() -> None:
     assert report.trials[0].target_gain == 0.1875
     assert report.trials[0].regression_loss == 0.0625
     assert report.trials[0].objective == 0.15375
+    patch = patch_from_search(report)
+    assert patch.model_revision == "revision"
+    assert patch.tokenizer_hash == "tokenizer-hash"
+    assert patch.interventions[0].value == 0.75
 
 
 def test_suite_rejects_duplicate_case_ids() -> None:
     duplicate = BehaviorCase(case_id="same", prompt="prompt", target_token_id=1)
     with pytest.raises(ValidationError, match="Case IDs must be unique"):
         EvaluationSuite(target=(duplicate,), regression=(duplicate,))
+
+
+def test_search_always_compares_with_noop() -> None:
+    suite = EvaluationSuite(
+        target=(BehaviorCase(case_id="failure", prompt="target", target_token_id=1),)
+    )
+    report = search_scale_patches(SearchRuntime(), suite, hook_globs=["block.*"], scales=[1.5])
+    assert report.trials[0].scale == 1.0
+    with pytest.raises(ValueError, match="no-op baseline"):
+        patch_from_search(report)

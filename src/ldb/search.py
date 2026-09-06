@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import math
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -13,7 +14,15 @@ import yaml
 from pydantic import Field, model_validator
 
 from ldb.causal import CausalRuntime
-from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, HookPoint
+from ldb.models import (
+    HOOK_SCHEMA_VERSION,
+    EvidenceLevel,
+    FrozenModel,
+    HookPoint,
+    Intervention,
+    InterventionKind,
+    NeuralPatch,
+)
 
 
 class BehaviorCase(FrozenModel):
@@ -26,11 +35,12 @@ class BehaviorCase(FrozenModel):
 class EvaluationSuite(FrozenModel):
     schema_version: Literal["ldb.suite/v1alpha1"] = "ldb.suite/v1alpha1"
     target: tuple[BehaviorCase, ...] = Field(min_length=1)
+    related: tuple[BehaviorCase, ...] = ()
     regression: tuple[BehaviorCase, ...] = ()
 
     @model_validator(mode="after")
     def unique_case_ids(self) -> EvaluationSuite:
-        case_ids = [case.case_id for case in (*self.target, *self.regression)]
+        case_ids = [case.case_id for case in (*self.target, *self.related, *self.regression)]
         if len(case_ids) != len(set(case_ids)):
             raise ValueError("Case IDs must be unique across the evaluation suite")
         return self
@@ -38,7 +48,7 @@ class EvaluationSuite(FrozenModel):
 
 class CaseScore(FrozenModel):
     case_id: str
-    group: Literal["target", "regression"]
+    group: Literal["target", "related", "regression"]
     baseline_log_probability: float
     patched_log_probability: float
     delta: float
@@ -48,6 +58,7 @@ class SearchTrial(FrozenModel):
     hook: str
     scale: float
     target_gain: float
+    related_gain: float | None = None
     regression_loss: float
     complexity: float
     objective: float
@@ -61,6 +72,7 @@ class SearchReport(FrozenModel):
     model_revision: str | None = None
     backend: str
     backend_version: str
+    tokenizer_hash: str
     hook_schema_version: str = HOOK_SCHEMA_VERSION
     regression_weight: float
     complexity_weight: float
@@ -88,6 +100,7 @@ def search_scale_patches(
         raise ValueError("At least one scale candidate is required")
     if not all(math.isfinite(scale) for scale in scales):
         raise ValueError("Scale candidates must be finite")
+    scale_candidates = tuple(dict.fromkeys((*scales, 1.0)))
     hooks = tuple(
         hook
         for hook in runtime.hook_points()
@@ -96,8 +109,11 @@ def search_scale_patches(
     if not hooks:
         raise ValueError("No hook points matched the requested patterns")
 
-    grouped_cases: tuple[tuple[Literal["target", "regression"], tuple[BehaviorCase, ...]], ...] = (
+    grouped_cases: tuple[
+        tuple[Literal["target", "related", "regression"], tuple[BehaviorCase, ...]], ...
+    ] = (
         ("target", suite.target),
+        ("related", suite.related),
         ("regression", suite.regression),
     )
     baselines = {
@@ -107,7 +123,7 @@ def search_scale_patches(
     }
     trials: list[SearchTrial] = []
     for hook in hooks:
-        for scale in scales:
+        for scale in scale_candidates:
 
             def apply_scale(_: HookPoint, tensor: Any, factor: float = scale) -> Any:
                 return tensor * factor
@@ -133,6 +149,11 @@ def search_scale_patches(
                 handle.remove()
 
             target_gain = _weighted_mean(case_scores, suite.target, group="target", loss=False)
+            related_gain = (
+                _weighted_mean(case_scores, suite.related, group="related", loss=False)
+                if suite.related
+                else None
+            )
             regression_loss = _weighted_mean(
                 case_scores, suite.regression, group="regression", loss=True
             )
@@ -145,6 +166,7 @@ def search_scale_patches(
                     hook=hook.name,
                     scale=scale,
                     target_gain=target_gain,
+                    related_gain=related_gain,
                     regression_loss=regression_loss,
                     complexity=complexity,
                     objective=objective,
@@ -152,15 +174,46 @@ def search_scale_patches(
                 )
             )
 
-    trials.sort(key=lambda trial: trial.objective, reverse=True)
+    trials.sort(key=lambda trial: (trial.objective, -trial.complexity), reverse=True)
     return SearchReport(
         model_id=runtime.model_id,
         model_revision=runtime.revision,
         backend=runtime.backend,
         backend_version=runtime.backend_version,
+        tokenizer_hash=runtime.tokenizer_hash,
         regression_weight=regression_weight,
         complexity_weight=complexity_weight,
         trials=tuple(trials),
+    )
+
+
+def patch_from_search(report: SearchReport) -> NeuralPatch:
+    if not report.trials:
+        raise ValueError("Search report contains no trials")
+    best = report.trials[0]
+    if best.scale == 1.0 or best.objective <= 0.0:
+        raise ValueError("No tested intervention outperformed the no-op baseline")
+    identity = hashlib.sha256(
+        f"{report.model_id}\0{report.model_revision}\0{best.hook}\0{best.scale}".encode()
+    ).hexdigest()[:12]
+    if report.model_revision is None:
+        raise ValueError("Cannot export a patch without a resolved model revision")
+    return NeuralPatch(
+        patch_id=f"ldb-{identity}",
+        description=f"Scale {best.hook} by {best.scale:.6g}.",
+        model_id=report.model_id,
+        model_revision=report.model_revision,
+        tokenizer_hash=report.tokenizer_hash,
+        adapter="ldb.adapters.transformers",
+        interventions=(
+            Intervention(
+                hook=best.hook,
+                operation=InterventionKind.SCALE,
+                value=best.scale,
+                request_scoped=True,
+            ),
+        ),
+        evidence=EvidenceLevel.CAUSALLY_TESTED,
     )
 
 
@@ -168,7 +221,7 @@ def _weighted_mean(
     scores: Sequence[CaseScore],
     cases: Sequence[BehaviorCase],
     *,
-    group: Literal["target", "regression"],
+    group: Literal["target", "related", "regression"],
     loss: bool,
 ) -> float:
     if not cases:

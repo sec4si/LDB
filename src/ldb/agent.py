@@ -15,9 +15,10 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from safetensors.torch import load_file, save_file
+from safetensors.torch import save_file
 
 from ldb.context import BatchContext, current_batch_context
+from ldb.interventions import apply_tensor_operation, load_intervention_tensor
 from ldb.live import (
     AgentCapability,
     AgentDescriptor,
@@ -75,6 +76,8 @@ class AgentRuntime:
         backend: str,
         backend_version: str,
         model_id: str,
+        model_revision: str | None = None,
+        tokenizer_hash: str | None = None,
         socket_dir: Path,
         output_dir: Path,
         rank: int = 0,
@@ -88,6 +91,8 @@ class AgentRuntime:
         self.backend = backend
         self.backend_version = backend_version
         self.model_id = model_id
+        self.model_revision = model_revision
+        self.tokenizer_hash = tokenizer_hash
         self.rank = rank
         self.world_size = world_size
         self.socket_dir = socket_dir
@@ -126,10 +131,14 @@ class AgentRuntime:
         ]
         if self.request_context:
             capabilities.append(AgentCapability.PATCH_REQUEST_SCOPED)
+        if self.model_revision is not None and self.tokenizer_hash is not None:
+            capabilities.append(AgentCapability.MODEL_IDENTITY)
         return AgentDescriptor(
             backend=self.backend,
             backend_version=self.backend_version,
             model_id=self.model_id,
+            model_revision=self.model_revision,
+            tokenizer_hash=self.tokenizer_hash,
             pid=os.getpid(),
             rank=self.rank,
             world_size=self.world_size,
@@ -218,7 +227,7 @@ class AgentRuntime:
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             _validate_live_patch(patch)
-            replacement = _load_patch_tensor(patch.tensor) if patch.tensor else None
+            replacement = load_intervention_tensor(patch.tensor) if patch.tensor else None
             with self._lock:
                 self._patches[patch.patch_id] = patch
                 if replacement is None:
@@ -451,31 +460,13 @@ def _apply_intervention(
 
 
 def _apply_operation(tensor: Any, patch: LiveIntervention, replacement: Any) -> Any:
-    import torch
-
-    if patch.operation is InterventionKind.SCALE:
-        assert patch.value is not None
-        return tensor * patch.value
-    if patch.operation is InterventionKind.ADD:
-        value = _tensor_for(replacement, tensor) if replacement is not None else patch.value
-        assert value is not None
-        return tensor + value
-    if patch.operation is InterventionKind.ABLATE:
-        return tensor * 0
-    if patch.operation is InterventionKind.REPLACE:
-        assert replacement is not None
-        return torch.broadcast_to(_tensor_for(replacement, tensor), tensor.shape)
-    if patch.operation is InterventionKind.ROUTING_BIAS:
-        assert patch.value is not None
-        assert patch.expert is not None
-        if not tensor.shape or patch.expert >= tensor.shape[-1]:
-            raise ValueError(
-                f"Expert {patch.expert} is outside router dimension {tensor.shape[-1:]}"
-            )
-        modified = tensor.clone()
-        modified[..., patch.expert] += patch.value
-        return modified
-    return tensor
+    return apply_tensor_operation(
+        tensor,
+        patch.operation,
+        value=patch.value,
+        replacement=replacement,
+        expert=patch.expert,
+    )
 
 
 def _validate_live_patch(patch: LiveIntervention) -> None:
@@ -495,17 +486,3 @@ def _validate_live_patch(patch: LiveIntervention) -> None:
         patch.value is not None or patch.tensor is not None or patch.expert is not None
     ):
         raise ValueError("ablate does not accept a value or tensor")
-
-
-def _load_patch_tensor(path_value: str) -> Any:
-    path = Path(path_value).expanduser()
-    tensors = load_file(path)
-    if "activation" in tensors:
-        return tensors["activation"]
-    if len(tensors) != 1:
-        raise ValueError("Patch tensor file must contain one tensor or an 'activation' tensor")
-    return next(iter(tensors.values()))
-
-
-def _tensor_for(value: Any, target: Any) -> Any:
-    return value.to(device=target.device, dtype=target.dtype)

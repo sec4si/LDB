@@ -14,6 +14,8 @@ def test_attach_executes_command_against_live_agent(tmp_path: Path) -> None:
         backend="test",
         backend_version="1",
         model_id="test-model",
+        model_revision="revision",
+        tokenizer_hash="hash",
         socket_dir=tmp_path / "agents",
         output_dir=tmp_path / "runs",
     ).start()
@@ -49,6 +51,8 @@ def test_attach_loads_versioned_patch_into_live_agent(tmp_path: Path) -> None:
         backend="test",
         backend_version="1",
         model_id="test-model",
+        model_revision="revision",
+        tokenizer_hash="hash",
         socket_dir=tmp_path / "agents",
         output_dir=tmp_path / "runs",
     ).start()
@@ -78,5 +82,41 @@ evidence: causally_tested
         assert result.exit_code == 0
         output = agent.process_tensor("block.0.residual.post", torch.tensor([2.0]))
         assert output.tolist() == [1.0]
+    finally:
+        agent.close()
+
+
+def test_attach_rejects_versioned_patch_without_runtime_identity(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    patch_file = tmp_path / "patch.yaml"
+    patch_file.write_text(
+        """schema_version: ldb.patch/v1alpha1
+patch_id: test-patch
+description: Test patch.
+model_id: test-model
+model_revision: revision
+tokenizer_hash: hash
+adapter: test
+interventions:
+  - hook: block.0.residual.post
+    operation: scale
+    value: 0.5
+    request_scoped: false
+""",
+        encoding="utf-8",
+    )
+    try:
+        result = runner.invoke(
+            app,
+            ["attach", str(agent.socket_path), "-e", f"patch-load {patch_file}"],
+        )
+        assert result.exit_code == 1
+        assert "requires model revision and tokenizer hash" in str(result.exception)
     finally:
         agent.close()
