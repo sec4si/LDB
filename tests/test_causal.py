@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from ldb.causal import causal_trace
+from ldb.causal import causal_propagation_graph, causal_trace
 from ldb.models import HookPhase, HookPoint
 
 torch = pytest.importorskip("torch")
@@ -64,6 +64,24 @@ class FakeRuntime:
         return score
 
 
+class PropagationRuntime(FakeRuntime):
+    def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
+        assert target_token_id == 7
+        source_hook, target_hook = self.hooks
+        source = torch.tensor([1.0 if prompt == "clean" else 0.0])
+        for callback in self.interventions.get(source_hook.name, []):
+            source = callback(source_hook, source)
+        for callback in self.probes.get(source_hook.name, []):
+            callback(source_hook, source)
+
+        target = source * 2
+        for callback in self.interventions.get(target_hook.name, []):
+            target = callback(target_hook, target)
+        for callback in self.probes.get(target_hook.name, []):
+            callback(target_hook, target)
+        return float(target.item())
+
+
 def test_causal_trace_ranks_clean_activation_recovery() -> None:
     report = causal_trace(
         FakeRuntime(),
@@ -81,3 +99,18 @@ def test_causal_trace_ranks_clean_activation_recovery() -> None:
     ]
     assert report.trials[0].effect == 2.0
     assert report.trials[0].recovery == pytest.approx(0.8)
+
+
+def test_causal_graph_measures_directed_activation_recovery() -> None:
+    report = causal_propagation_graph(
+        PropagationRuntime(),
+        clean_prompt="clean",
+        corrupt_prompt="corrupt",
+        target_token_id=7,
+        minimum_recovery=0.1,
+    )
+
+    assert len(report.edges) == 1
+    assert report.edges[0].source == "block.0.residual.post"
+    assert report.edges[0].target == "block.1.residual.post"
+    assert report.edges[0].activation_recovery == 1.0

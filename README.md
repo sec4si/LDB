@@ -27,6 +27,7 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - pre-projection attention-head inspection and exact head ablation;
 - request-filtered traces, request-scoped patches, and bounded batch breakpoints;
 - clean/corrupt activation patching for causal next-token localization;
+- directed causal propagation graphs from downstream activation recovery;
 - canonical SAE dictionary loading and top-feature inspection;
 - request-scoped single-feature SAE scaling;
 - regression-aware patch search, reproducible export, and verification;
@@ -141,3 +142,5 @@ See [technology choices](docs/technology.md) for language, protocol, storage, an
 dependency decisions.
 See [GPU acceptance](docs/gpu-validation.md) for the real-server smoke harness and
 the evidence required before a runtime combination is marked verified.
+See [causal propagation graphs](docs/causal-graph.md) for the directed-edge
+experiment and its evidence boundary.
