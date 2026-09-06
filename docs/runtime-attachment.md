@@ -53,7 +53,13 @@ the serving worker's filesystem and must contain either one tensor or a tensor n
   --tensor /srv/ldb/steering.safetensors --request request-42
 (ldb) patch-set route-1 'block.20.moe.router' routing_bias -0.25 \
   --expert 7 --request request-42
+(ldb) patch-load neural-patch.yaml --request request-42
 ```
+
+`patch-load` validates the versioned Neural Patch, checks its model ID against every
+connected worker, resolves tensor paths relative to the patch document, and rolls
+back interventions already installed if a later intervention or rank fails. A
+request-scoped intervention cannot be loaded without at least one `--request`.
 
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control

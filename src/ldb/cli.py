@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import shlex
+from contextlib import suppress
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -32,6 +33,7 @@ _ATTACH_HELP = """Commands:
   events [AFTER_SEQUENCE]
   clear
   patch-set PATCH_ID HOOK OP [VALUE] [--tensor PATH] [--expert INDEX] [--request REQUEST_ID]
+  patch-load PATH [--request REQUEST_ID]
   patch-remove PATCH_ID
   patches
   break BREAKPOINT_ID HOOK [--request REQUEST_ID] [--timeout SECONDS]
@@ -285,6 +287,9 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
         if expert is not None:
             params["expert"] = expert
         method = "patch.set"
+    elif name == "patch-load" and arguments:
+        _load_live_patch(client, arguments)
+        return True
     elif name == "break" and len(arguments) >= 2:
         breakpoint_id, hook = arguments[:2]
         request_ids, timeout = _parse_break_arguments(arguments[2:])
@@ -309,6 +314,63 @@ def _run_agent_command(client: AgentGroupClient, command: str) -> bool:
     results = client.call(method, params)
     console.print_json(data=results)
     return True
+
+
+def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
+    path = Path(arguments[0]).expanduser()
+    request_ids = _parse_request_options(arguments[1:])
+    patch = load_patch(path)
+    descriptors = client.call("hello")
+    mismatched = sorted(
+        {str(descriptor["model_id"]) for descriptor in descriptors} - {patch.model_id}
+    )
+    if mismatched:
+        raise ValueError(
+            f"Patch targets {patch.model_id!r}, but agents serve {', '.join(mismatched)}"
+        )
+
+    installed: list[str] = []
+    try:
+        for index, intervention in enumerate(patch.interventions):
+            if intervention.request_scoped and not request_ids:
+                raise ValueError(
+                    f"Intervention {index} is request-scoped; provide --request REQUEST_ID"
+                )
+            patch_id = f"{patch.patch_id}:{index}"
+            params: dict[str, Any] = {
+                "patch_id": patch_id,
+                "hook": intervention.hook,
+                "operation": intervention.operation,
+                "request_ids": request_ids if intervention.request_scoped else [],
+            }
+            if intervention.value is not None:
+                params["value"] = intervention.value
+            if intervention.tensor is not None:
+                tensor_path = Path(intervention.tensor)
+                params["tensor"] = str(
+                    tensor_path if tensor_path.is_absolute() else path.parent / tensor_path
+                )
+            if intervention.expert is not None:
+                params["expert"] = intervention.expert
+            client.call("patch.set", params)
+            installed.append(patch_id)
+    except Exception:
+        for patch_id in reversed(installed):
+            with suppress(Exception):
+                client.call("patch.remove", {"patch_id": patch_id})
+        raise
+    console.print(f"Installed {len(installed)} intervention(s) from [bold]{path}[/bold]")
+
+
+def _parse_request_options(arguments: list[str]) -> list[str]:
+    request_ids: list[str] = []
+    index = 0
+    while index < len(arguments):
+        if arguments[index] != "--request" or index + 1 >= len(arguments):
+            raise ValueError(f"Invalid request option: {arguments[index]}")
+        request_ids.append(arguments[index + 1])
+        index += 2
+    return request_ids
 
 
 def _parse_arm_arguments(arguments: list[str]) -> tuple[bool, list[str], list[str]]:

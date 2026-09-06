@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 HOOK_SCHEMA_VERSION: Final = "ldb.hooks/v1alpha1"
 RUN_SCHEMA_VERSION: Final = "ldb.run/v1alpha1"
@@ -88,7 +88,24 @@ class Intervention(FrozenModel):
     operation: InterventionKind
     value: float | None = None
     tensor: str | None = None
+    expert: int | None = Field(default=None, ge=0)
     request_scoped: bool = True
+
+    @model_validator(mode="after")
+    def valid_arguments(self) -> Intervention:
+        if self.operation is InterventionKind.SCALE:
+            valid = self.value is not None and self.tensor is None and self.expert is None
+        elif self.operation is InterventionKind.ADD:
+            valid = (self.value is None) != (self.tensor is None) and self.expert is None
+        elif self.operation is InterventionKind.REPLACE:
+            valid = self.tensor is not None and self.value is None and self.expert is None
+        elif self.operation is InterventionKind.ROUTING_BIAS:
+            valid = self.value is not None and self.tensor is None and self.expert is not None
+        else:
+            valid = self.value is None and self.tensor is None and self.expert is None
+        if not valid:
+            raise ValueError(f"Invalid arguments for {self.operation.value} intervention")
+        return self
 
 
 class ValidationSummary(FrozenModel):
