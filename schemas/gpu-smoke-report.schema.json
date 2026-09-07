@@ -1,0 +1,291 @@
+{
+  "$defs": {
+    "AgentCapability": {
+      "enum": [
+        "hooks.discovery",
+        "trace.summary",
+        "trace.cuda_graph",
+        "trace.tensor",
+        "patch.activation",
+        "patch.request_scoped",
+        "breakpoint.batch",
+        "breakpoint.inspect",
+        "execution.eager_only",
+        "model.identity",
+        "patch.cuda_graph"
+      ],
+      "title": "AgentCapability",
+      "type": "string"
+    },
+    "AgentDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "backend_version": {
+          "title": "Backend Version",
+          "type": "string"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/AgentCapability"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Revision"
+        },
+        "pid": {
+          "exclusiveMinimum": 0,
+          "title": "Pid",
+          "type": "integer"
+        },
+        "protocol_version": {
+          "const": "ldb.agent/v1alpha1",
+          "default": "ldb.agent/v1alpha1",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "rank": {
+          "minimum": 0,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "socket_path": {
+          "title": "Socket Path",
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "tokenizer_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer Hash"
+        },
+        "topology": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Topology",
+          "type": "object"
+        },
+        "world_size": {
+          "exclusiveMinimum": 0,
+          "title": "World Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "backend",
+        "backend_version",
+        "model_id",
+        "pid",
+        "rank",
+        "world_size",
+        "socket_path",
+        "capabilities"
+      ],
+      "title": "AgentDescriptor",
+      "type": "object"
+    },
+    "GpuDevice": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Capability",
+          "type": "array"
+        },
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "capability"
+      ],
+      "title": "GpuDevice",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "agents": {
+      "items": {
+        "$ref": "#/$defs/AgentDescriptor"
+      },
+      "minItems": 1,
+      "title": "Agents",
+      "type": "array"
+    },
+    "backend": {
+      "enum": [
+        "vllm",
+        "sglang"
+      ],
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "baseline_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Baseline Digest"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "cuda_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cuda Version"
+    },
+    "devices": {
+      "items": {
+        "$ref": "#/$defs/GpuDevice"
+      },
+      "minItems": 1,
+      "title": "Devices",
+      "type": "array"
+    },
+    "graph_patch_changed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Graph Patch Changed"
+    },
+    "ldb_commit": {
+      "title": "Ldb Commit",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "eager",
+        "graph"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "passed": {
+      "const": true,
+      "default": true,
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "patched_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Patched Digest"
+    },
+    "python_version": {
+      "title": "Python Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.gpu-smoke/v1alpha1",
+      "default": "ldb.gpu-smoke/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "torch_version": {
+      "title": "Torch Version",
+      "type": "string"
+    },
+    "trace_observed": {
+      "title": "Trace Observed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ldb_commit",
+    "backend",
+    "backend_version",
+    "model_id",
+    "mode",
+    "python_version",
+    "torch_version",
+    "devices",
+    "agents",
+    "trace_observed"
+  ],
+  "title": "GpuSmokeReport",
+  "type": "object"
+}

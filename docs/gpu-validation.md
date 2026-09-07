@@ -6,10 +6,10 @@ ships a real-server smoke harness rather than labeling source-audited combinatio
 as GPU verified.
 
 ```console
-python scripts/gpu_smoke.py vllm facebook/opt-125m --mode eager
-python scripts/gpu_smoke.py sglang facebook/opt-125m --mode eager
-python scripts/gpu_smoke.py vllm facebook/opt-125m --mode graph
-python scripts/gpu_smoke.py sglang facebook/opt-125m --mode graph
+python scripts/gpu_smoke.py vllm facebook/opt-125m --mode eager --artifacts evidence/vllm-eager
+python scripts/gpu_smoke.py sglang facebook/opt-125m --mode eager --artifacts evidence/sglang-eager
+python scripts/gpu_smoke.py vllm facebook/opt-125m --mode graph --artifacts evidence/vllm-graph
+python scripts/gpu_smoke.py sglang facebook/opt-125m --mode graph --artifacts evidence/sglang-graph
 ```
 
 The eager test starts the OpenAI-compatible server, attaches through the private
@@ -24,3 +24,10 @@ The `GPU smoke` GitHub workflow is manual and targets a self-hosted runner label
 `self-hosted`, `linux`, `x64`, and `gpu`. A runtime combination is not GPU verified
 until this workflow passes on the relevant runtime version, model family, mode, and
 parallel topology.
+
+The workflow requires an exact runtime package version instead of installing an
+unbounded latest release. Every run uploads the server log and, on success, a
+versioned `result.json` containing the LDB commit, backend version, model, execution
+mode, Python/PyTorch/CUDA versions, GPU identities, trace evidence, and digests of
+the graph baseline and patched responses. A green job without this evidence bundle
+does not qualify a combination as verified.

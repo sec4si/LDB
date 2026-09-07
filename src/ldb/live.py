@@ -104,6 +104,32 @@ class LiveTraceEvent(FrozenModel):
     occurrences: int = Field(default=1, ge=1)
 
 
+class GpuDevice(FrozenModel):
+    index: int = Field(ge=0)
+    name: str
+    capability: tuple[int, int]
+
+
+class GpuSmokeReport(FrozenModel):
+    schema_version: Literal["ldb.gpu-smoke/v1alpha1"] = "ldb.gpu-smoke/v1alpha1"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    ldb_commit: str
+    backend: Literal["vllm", "sglang"]
+    backend_version: str
+    model_id: str
+    mode: Literal["eager", "graph"]
+    python_version: str
+    torch_version: str
+    cuda_version: str | None = None
+    devices: tuple[GpuDevice, ...] = Field(min_length=1)
+    agents: tuple[AgentDescriptor, ...] = Field(min_length=1)
+    trace_observed: bool
+    graph_patch_changed: bool | None = None
+    baseline_digest: str | None = None
+    patched_digest: str | None = None
+    passed: Literal[True] = True
+
+
 class AgentRequest(FrozenModel):
     protocol_version: Literal["ldb.agent/v1alpha1"] = "ldb.agent/v1alpha1"
     request_id: str

@@ -15,6 +15,10 @@ on:
         required: true
         default: facebook/opt-125m
         type: string
+      runtime_version:
+        description: Exact vLLM or SGLang package version
+        required: true
+        type: string
       mode:
         description: Execution mode
         required: true
@@ -37,9 +41,24 @@ jobs:
         run: python -m pip install '.[transformers]'
       - name: Install vLLM
         if: inputs.backend == 'vllm'
-        run: python -m pip install vllm
+        env:
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+        run: python -m pip install "vllm==${RUNTIME_VERSION}"
       - name: Install SGLang
         if: inputs.backend == 'sglang'
-        run: python -m pip install 'sglang[all]'
+        env:
+          RUNTIME_VERSION: ${{ inputs.runtime_version }}
+        run: python -m pip install "sglang[all]==${RUNTIME_VERSION}"
       - name: Run smoke test
-        run: python scripts/gpu_smoke.py '${{ inputs.backend }}' '${{ inputs.model }}' --mode '${{ inputs.mode }}'
+        env:
+          BACKEND: ${{ inputs.backend }}
+          MODEL_ID: ${{ inputs.model }}
+          MODE: ${{ inputs.mode }}
+        run: python scripts/gpu_smoke.py "$BACKEND" "$MODEL_ID" --mode "$MODE" --artifacts gpu-smoke-artifacts
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-smoke-${{ inputs.backend }}-${{ inputs.runtime_version }}-${{ inputs.mode }}
+          path: gpu-smoke-artifacts/
+          if-no-files-found: error
