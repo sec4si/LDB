@@ -122,6 +122,14 @@
           "default": null,
           "title": "Score Std"
         },
+        "strongest_attention": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AttentionEdge"
+          },
+          "title": "Strongest Attention",
+          "type": "array"
+        },
         "v_norm": {
           "anyOf": [
             {
@@ -423,6 +431,152 @@
       "title": "CausalTrial",
       "type": "object"
     },
+    "CombinationSearchReport": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "backend_version": {
+          "title": "Backend Version",
+          "type": "string"
+        },
+        "complexity_weight": {
+          "title": "Complexity Weight",
+          "type": "number"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha2",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
+        "max_interventions": {
+          "exclusiveMinimum": 0,
+          "title": "Max Interventions",
+          "type": "integer"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Revision"
+        },
+        "regression_weight": {
+          "title": "Regression Weight",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "ldb.combination-search/v1alpha1",
+          "default": "ldb.combination-search/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tokenizer_hash": {
+          "title": "Tokenizer Hash",
+          "type": "string"
+        },
+        "trials": {
+          "items": {
+            "$ref": "#/$defs/CombinationTrial"
+          },
+          "title": "Trials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "backend",
+        "backend_version",
+        "tokenizer_hash",
+        "regression_weight",
+        "complexity_weight",
+        "max_interventions",
+        "trials"
+      ],
+      "title": "CombinationSearchReport",
+      "type": "object"
+    },
+    "CombinationTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/CaseScore"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "complexity": {
+          "title": "Complexity",
+          "type": "number"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/$defs/Intervention"
+          },
+          "title": "Interventions",
+          "type": "array"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "regression_loss": {
+          "title": "Regression Loss",
+          "type": "number"
+        },
+        "related_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Gain"
+        },
+        "target_gain": {
+          "title": "Target Gain",
+          "type": "number"
+        }
+      },
+      "required": [
+        "candidate_ids",
+        "interventions",
+        "target_gain",
+        "regression_loss",
+        "complexity",
+        "objective",
+        "cases"
+      ],
+      "title": "CombinationTrial",
+      "type": "object"
+    },
     "EvidenceLevel": {
       "enum": [
         "observed",
@@ -433,6 +587,44 @@
       ],
       "title": "EvidenceLevel",
       "type": "string"
+    },
+    "FeatureActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "active_fraction": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Active Fraction",
+          "type": "number"
+        },
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "peak": {
+          "title": "Peak",
+          "type": "number"
+        },
+        "peak_token": {
+          "minimum": 0,
+          "title": "Peak Token",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature",
+        "peak",
+        "peak_token",
+        "mean",
+        "active_fraction"
+      ],
+      "title": "FeatureActivation",
+      "type": "object"
     },
     "Intervention": {
       "additionalProperties": false,
@@ -858,6 +1050,17 @@
       "title": "Created At",
       "type": "string"
     },
+    "feature_search": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CombinationSearchReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "head_trials": {
       "default": [],
       "items": {
@@ -876,6 +1079,14 @@
         }
       ],
       "default": null
+    },
+    "sae_features": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FeatureActivation"
+      },
+      "title": "Sae Features",
+      "type": "array"
     },
     "schema_version": {
       "const": "ldb.diagnosis/v1alpha1",

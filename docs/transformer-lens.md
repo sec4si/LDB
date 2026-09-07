@@ -53,7 +53,9 @@ canonical hook under a different module path.
 Q/K/V/Z/result use `[batch, token, head, channel]`; scores and patterns use
 `[batch, head, query_token, key_token]`. `ldb attention` reports Q/K/V/Z/result
 magnitudes, pattern entropy, and the strongest query-to-key edge for every exposed
-head. `ldb ablate --hook 'block.*.attention.z' --head N` measures a single head's
+head. The JSON report retains the configurable top-K edges per head. Use repeated
+`--layer` options and `--max-capture-mib` to bound full Q/K/V/pattern/result capture
+on large models. `ldb ablate --hook 'block.*.attention.z' --head N` measures a single head's
 causal next-token effect.
 
 ## Runtime separation

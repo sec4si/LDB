@@ -122,6 +122,14 @@
           "default": null,
           "title": "Score Std"
         },
+        "strongest_attention": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AttentionEdge"
+          },
+          "title": "Strongest Attention",
+          "type": "array"
+        },
         "v_norm": {
           "anyOf": [
             {

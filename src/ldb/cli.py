@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import shlex
+import shutil
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -18,10 +20,10 @@ from ldb.attention import analyze_attention
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
 from ldb.compatibility import AUDITED_RUNTIME_VERSIONS
-from ldb.diagnosis import diagnose_failure
+from ldb.diagnosis import DiagnosisReport, diagnose_failure
 from ldb.identity import resolve_tokenizer_identity
 from ldb.injector import inject_process
-from ldb.models import HookPoint, RunManifest, ValidationSummary
+from ldb.models import HookPoint, Intervention, NeuralPatch, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
 from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features, inspect_sae_tokens
@@ -308,6 +310,9 @@ def inspect_attention(
     model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
     prompt: Annotated[str, typer.Option("--prompt")],
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    top_k_edges: Annotated[int, typer.Option("--top-k-edges", min=1)] = 8,
+    layer: Annotated[list[int] | None, typer.Option("--layer", min=0)] = None,
+    max_capture_mib: Annotated[int, typer.Option("--max-capture-mib", min=1)] = 512,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
     engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
@@ -315,7 +320,13 @@ def inspect_attention(
     """Inspect Q/K/V magnitude, patterns, and output magnitude for every head."""
 
     adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
-    report = analyze_attention(adapter, prompt=prompt)
+    report = analyze_attention(
+        adapter,
+        prompt=prompt,
+        top_k_edges=top_k_edges,
+        layers=layer,
+        max_capture_bytes=max_capture_mib * 1024 * 1024,
+    )
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
@@ -514,6 +525,15 @@ def diagnose(
     scale: Annotated[list[float] | None, typer.Option("--scale")] = None,
     max_hooks: Annotated[int, typer.Option("--max-hooks", min=1)] = 8,
     max_head_trials: Annotated[int, typer.Option("--max-head-trials", min=0)] = 32,
+    include_attention_report: Annotated[
+        bool, typer.Option("--attention-report", help="Embed full bounded attention analysis")
+    ] = False,
+    sae_hook: Annotated[str | None, typer.Option("--sae-hook")] = None,
+    sae_dictionary: Annotated[
+        Path | None, typer.Option("--sae-dictionary", exists=True, dir_okay=False)
+    ] = None,
+    max_sae_features: Annotated[int, typer.Option("--max-sae-features", min=1)] = 8,
+    feature_scale: Annotated[list[float] | None, typer.Option("--feature-scale")] = None,
     output: Annotated[Path | None, typer.Option("--output")] = None,
     patch_output: Annotated[Path | None, typer.Option("--patch-output")] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
@@ -538,14 +558,21 @@ def diagnose(
         scales=scale or [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
         max_hooks=max_hooks,
         max_head_trials=max_head_trials,
+        include_attention_report=include_attention_report,
+        sae_hook=sae_hook,
+        sae_dictionary=sae_dictionary,
+        max_sae_features=max_sae_features,
+        feature_scales=feature_scale or [0.0, 0.5, 1.5],
     )
-    if output is not None:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
     if patch_output is not None:
         if report.patch is None:
             raise ValueError("Diagnosis found no patch that outperformed the no-op baseline")
+        report = _portable_diagnosis_report(patch_output, report)
+        assert report.patch is not None
         write_patch(patch_output, report.patch)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
     console.print(report.conclusion)
     table = Table("Hook", "Causal effect", "Recovery")
     for trial in report.causal.trials[:max_hooks]:
@@ -565,10 +592,88 @@ def diagnose(
                 f"{trial.recovery:+.2%}" if trial.recovery is not None else "-",
             )
         console.print(head_table)
+    if report.sae_features:
+        feature_table = Table("Feature", "Activation", "Peak token", "Active")
+        for feature in report.sae_features:
+            feature_table.add_row(
+                str(feature.feature),
+                f"{feature.peak:.6g}",
+                str(feature.peak_token),
+                f"{feature.active_fraction:.1%}",
+            )
+        console.print(feature_table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")
     if patch_output is not None:
         console.print(f"Neural Patch: [bold]{patch_output}[/bold]")
+
+
+def _portable_diagnosis_patch(path: Path, patch: NeuralPatch) -> NeuralPatch:
+    interventions = []
+    for intervention in patch.interventions:
+        if intervention.dictionary is None:
+            interventions.append(intervention)
+            continue
+        source = Path(intervention.dictionary).resolve()
+        digest = _file_sha256(source)
+        directory = path.parent / f"{path.stem}.resources"
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / f"{digest[:16]}.safetensors"
+        if destination.exists():
+            existing = _file_sha256(destination)
+            if existing != digest:
+                raise RuntimeError(f"Diagnosis resource collision: {destination}")
+        else:
+            shutil.copyfile(source, destination)
+        interventions.append(
+            intervention.model_copy(
+                update={"dictionary": str(destination.relative_to(path.parent))}
+            )
+        )
+    return patch.model_copy(update={"interventions": tuple(interventions)})
+
+
+def _portable_diagnosis_report(path: Path, report: DiagnosisReport) -> DiagnosisReport:
+    assert report.patch is not None
+    portable_patch = _portable_diagnosis_patch(path, report.patch)
+    replacements: dict[str, str] = {}
+    for original, portable in zip(
+        report.patch.interventions, portable_patch.interventions, strict=True
+    ):
+        if original.dictionary is not None and portable.dictionary is not None:
+            replacements[original.dictionary] = portable.dictionary
+
+    def replace_dictionary(intervention: Intervention) -> Intervention:
+        if intervention.dictionary is None:
+            return intervention
+        replacement = replacements.get(intervention.dictionary)
+        if replacement is None:
+            return intervention
+        return intervention.model_copy(update={"dictionary": replacement})
+
+    feature_search = report.feature_search
+    if feature_search is not None and replacements:
+        feature_search = feature_search.model_copy(
+            update={
+                "trials": tuple(
+                    trial.model_copy(
+                        update={
+                            "interventions": tuple(
+                                replace_dictionary(intervention)
+                                for intervention in trial.interventions
+                            )
+                        }
+                    )
+                    for trial in feature_search.trials
+                )
+            }
+        )
+    return report.model_copy(update={"patch": portable_patch, "feature_search": feature_search})
+
+
+def _file_sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 @app.command("search")

@@ -56,6 +56,7 @@ class AttentionHead(FrozenModel):
     score_std: float | None = None
     pattern_entropy: float | None = None
     maximum_attention: AttentionEdge | None = None
+    strongest_attention: tuple[AttentionEdge, ...] = ()
 
 
 class AttentionReport(FrozenModel):
@@ -70,17 +71,40 @@ class AttentionReport(FrozenModel):
     heads: tuple[AttentionHead, ...]
 
 
-def analyze_attention(runtime: AttentionRuntime, *, prompt: str) -> AttentionReport:
+def analyze_attention(
+    runtime: AttentionRuntime,
+    *,
+    prompt: str,
+    top_k_edges: int = 8,
+    layers: Sequence[int] | None = None,
+    max_capture_bytes: int = 512 * 1024 * 1024,
+) -> AttentionReport:
     """Execute one prompt and summarize every exposed attention head."""
 
-    hooks = tuple(hook for hook in runtime.hook_points() if _ATTENTION_HOOK.match(hook.name))
+    if top_k_edges <= 0 or max_capture_bytes <= 0:
+        raise ValueError("Attention analysis limits must be positive")
+    selected_layers = set(layers) if layers is not None else None
+    hooks = tuple(
+        hook
+        for hook in runtime.hook_points()
+        if (match := _ATTENTION_HOOK.match(hook.name))
+        and (selected_layers is None or int(match.group("layer")) in selected_layers)
+    )
     if not hooks:
         raise ValueError("Runtime exposes no detailed attention hooks")
     activations: dict[tuple[int, str], Any] = {}
+    captured_bytes = 0
 
     def capture(hook: HookPoint, tensor: Any) -> None:
+        nonlocal captured_bytes
         match = _ATTENTION_HOOK.match(hook.name)
         assert match is not None
+        required = int(tensor.numel()) * 4
+        if captured_bytes + required > max_capture_bytes:
+            raise RuntimeError(
+                f"Attention capture exceeds {max_capture_bytes} bytes; select fewer layers"
+            )
+        captured_bytes += required
         activations[(int(match.group("layer")), match.group("component"))] = (
             tensor.detach().float().cpu()
         )
@@ -118,6 +142,7 @@ def analyze_attention(runtime: AttentionRuntime, *, prompt: str) -> AttentionRep
                     score_std=_score_stat(layer_values.get("scores"), head, "std"),
                     pattern_entropy=_pattern_entropy(pattern, head),
                     maximum_attention=_maximum_attention(pattern, head),
+                    strongest_attention=_strongest_attention(pattern, head, top_k=top_k_edges),
                 )
             )
 
@@ -184,16 +209,28 @@ def _score_stat(scores: Any, head: int, statistic: str) -> float | None:
 
 
 def _maximum_attention(pattern: Any, head: int) -> AttentionEdge | None:
+    edges = _strongest_attention(pattern, head, top_k=1)
+    return edges[0] if edges else None
+
+
+def _strongest_attention(pattern: Any, head: int, *, top_k: int) -> tuple[AttentionEdge, ...]:
     if pattern is None:
-        return None
-    values = pattern[:, head]
-    flat_index = int(values.reshape(-1).argmax().item())
+        return ()
+    if pattern.shape[0] != 1:
+        raise ValueError("Attention analysis expects one prompt per execution")
+    values = pattern[0, head]
+    flat = values.reshape(-1)
+    positive = (flat > 0).nonzero().flatten()
+    if positive.numel() == 0:
+        return ()
+    count = min(top_k, int(positive.numel()))
+    selected = positive[flat[positive].topk(count).indices]
     key_count = int(values.shape[-1])
-    query_count = int(values.shape[-2])
-    within_batch = flat_index % (query_count * key_count)
-    query, key = divmod(within_batch, key_count)
-    return AttentionEdge(
-        query_token=query,
-        key_token=key,
-        weight=float(values.reshape(-1)[flat_index].item()),
+    return tuple(
+        AttentionEdge(
+            query_token=int(index) // key_count,
+            key_token=int(index) % key_count,
+            weight=float(flat[index].item()),
+        )
+        for index in selected.tolist()
     )

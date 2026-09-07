@@ -70,4 +70,7 @@ def test_attention_analysis_reports_every_head() -> None:
     assert report.heads[0].maximum_attention.query_token == 0
     assert report.heads[0].maximum_attention.key_token == 0
     assert report.heads[0].maximum_attention.weight == 1.0
+    assert len(report.heads[0].strongest_attention) == 3
+    assert report.heads[0].strongest_attention[1].query_token == 1
+    assert report.heads[0].strongest_attention[1].key_token == 1
     assert report.heads[0].score_mean == pytest.approx(0.5)
