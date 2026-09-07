@@ -140,6 +140,11 @@ context provider and resolves spans only after vLLM has finalized its internal
 `InputBatch` order. Both paths enable request-filtered traces and request-scoped
 activation patches without changing other rows in a continuous batch.
 
+The control socket is created only after model topology discovery and normalized
+hook installation complete. A process-local agent cannot be reused with a different
+backend version, model identity, distributed world size, request-context contract,
+or CUDA Graph mode.
+
 A breakpoint stops the worker's current model thread, which pauses the whole forward
 batch at that rank. It does not yet retract a single request while unrelated requests
 continue. Breakpoints have mandatory bounded timeouts to avoid leaving a serving

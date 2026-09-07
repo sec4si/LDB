@@ -31,17 +31,18 @@ def get_or_create_agent(
     backend_version: str,
     model_id: str,
     config: Mapping[str, Any] | None = None,
+    _start: bool = True,
 ) -> AgentRuntime:
     """Return the process-local runtime agent for a backend."""
 
     values = config or {}
     rank = int(values.get("rank", _environment_int("RANK", 0)))
     world_size = int(values.get("world_size", _environment_int("WORLD_SIZE", 1)))
-    key = (backend, rank)
-    agent = _AGENTS.get(key)
-    if agent is not None:
-        return agent
-
+    model_revision = _configured_string(values, "model_revision", "LDB_MODEL_REVISION")
+    tokenizer_hash = _configured_string(values, "tokenizer_hash", "LDB_TOKENIZER_HASH")
+    request_context = bool(values.get("request_context", False))
+    topology = dict(values.get("topology", {}))
+    graph_control = bool(values.get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1"))
     default_root = f"/tmp/ldb-{os.getuid()}"
     socket_dir = Path(
         str(values.get("socket_dir", os.environ.get("LDB_SOCKET_DIR", f"{default_root}/agents")))
@@ -49,22 +50,40 @@ def get_or_create_agent(
     output_dir = Path(
         str(values.get("output_dir", os.environ.get("LDB_OUTPUT_DIR", f"{default_root}/runs")))
     )
+    key = (backend, rank)
+    agent = _AGENTS.get(key)
+    if agent is not None:
+        _validate_existing_agent(
+            agent,
+            backend_version=backend_version,
+            model_id=model_id,
+            model_revision=model_revision,
+            tokenizer_hash=tokenizer_hash,
+            world_size=world_size,
+            request_context=request_context,
+            topology=topology,
+            graph_control=graph_control,
+            socket_dir=socket_dir,
+            output_dir=output_dir,
+        )
+        return agent.start() if _start else agent
+
     agent = AgentRuntime(
         backend=backend,
         backend_version=backend_version,
         model_id=model_id,
-        model_revision=_configured_string(values, "model_revision", "LDB_MODEL_REVISION"),
-        tokenizer_hash=_configured_string(values, "tokenizer_hash", "LDB_TOKENIZER_HASH"),
+        model_revision=model_revision,
+        tokenizer_hash=tokenizer_hash,
         socket_dir=socket_dir,
         output_dir=output_dir,
         rank=rank,
         world_size=world_size,
-        request_context=bool(values.get("request_context", False)),
-        topology=dict(values.get("topology", {})),
-        graph_control=bool(values.get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1")),
-    ).start()
+        request_context=request_context,
+        topology=topology,
+        graph_control=graph_control,
+    )
     _AGENTS[key] = agent
-    return agent
+    return agent.start() if _start else agent
 
 
 def install_model_runtime(
@@ -82,15 +101,16 @@ def install_model_runtime(
     if isinstance(existing, AgentRuntime):
         return existing
 
+    module_by_path = dict(model.named_modules())
+    block_path = _find_block_path(module_by_path)
+    blocks = module_by_path[block_path]
     agent = get_or_create_agent(
         backend=backend,
         backend_version=backend_version,
         model_id=model_id,
         config=config,
+        _start=False,
     )
-    module_by_path = dict(model.named_modules())
-    block_path = _find_block_path(module_by_path)
-    blocks = module_by_path[block_path]
 
     for index in range(len(blocks)):
         prefix = f"{block_path}.{index}"
@@ -139,7 +159,7 @@ def install_model_runtime(
         )
         _install_expert_hooks(agent, module_by_path, prefix, index)
     setattr(model, marker, agent)
-    return agent
+    return agent.start()
 
 
 def sglang_forward_hook_factory(config: dict[str, Any]) -> Any:
@@ -152,8 +172,10 @@ def sglang_forward_hook_factory(config: dict[str, Any]) -> Any:
         backend_version=backend_version,
         model_id=str(config.get("model_id", "unknown")),
         config=config,
+        _start=False,
     )
     agent.register_hook(hook_name)
+    agent.start()
 
     def hook(_: Any, __: tuple[Any, ...], output: Any) -> Any:
         return _process_output(agent, hook_name, output)
@@ -167,6 +189,42 @@ def close_agents() -> None:
     for agent in _AGENTS.values():
         agent.close()
     _AGENTS.clear()
+
+
+def _validate_existing_agent(
+    agent: AgentRuntime,
+    *,
+    backend_version: str,
+    model_id: str,
+    model_revision: str | None,
+    tokenizer_hash: str | None,
+    world_size: int,
+    request_context: bool,
+    topology: dict[str, Any],
+    graph_control: bool,
+    socket_dir: Path,
+    output_dir: Path,
+) -> None:
+    expected = {
+        "backend_version": backend_version,
+        "model_id": model_id,
+        "model_revision": model_revision,
+        "tokenizer_hash": tokenizer_hash,
+        "world_size": world_size,
+        "request_context": request_context,
+        "topology": topology,
+        "graph_control": graph_control,
+        "socket_dir": socket_dir,
+        "output_dir": output_dir,
+    }
+    mismatched = [
+        field for field, value in expected.items() if getattr(agent, field) != value
+    ]
+    if mismatched:
+        raise RuntimeError(
+            "Refusing to reuse an LDB agent with incompatible identity: "
+            + ", ".join(mismatched)
+        )
 
 
 def _find_block_path(module_by_path: Mapping[str, Any]) -> str:

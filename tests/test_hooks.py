@@ -67,6 +67,11 @@ class MoEModel(nn.Module):
         return self.model.layers[0](value)
 
 
+class UnsupportedModel(nn.Module):
+    def forward(self, value):
+        return value
+
+
 def test_installed_model_runtime_uses_normalized_hooks(tmp_path: Path) -> None:
     model = Model()
     agent = install_model_runtime(
@@ -148,6 +153,45 @@ def test_runtime_installation_is_idempotent(tmp_path: Path) -> None:
     try:
         assert first is second
     finally:
+        close_agents()
+
+
+def test_runtime_is_not_exposed_before_topology_validation(tmp_path: Path) -> None:
+    socket_dir = tmp_path / "agents"
+    with pytest.raises(ValueError, match="no decoder block container"):
+        install_model_runtime(
+            UnsupportedModel(),
+            backend="test-invalid-hooks",
+            backend_version="1",
+            model_id="test-model",
+            config={"socket_dir": socket_dir, "output_dir": tmp_path / "runs"},
+        )
+
+    assert not socket_dir.exists()
+
+
+def test_process_agent_reuse_requires_consistent_identity(tmp_path: Path) -> None:
+    first = install_model_runtime(
+        Model(),
+        backend="test-agent-identity",
+        backend_version="1",
+        model_id="model-a",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        with pytest.raises(RuntimeError, match="incompatible identity: model_id"):
+            install_model_runtime(
+                Model(),
+                backend="test-agent-identity",
+                backend_version="1",
+                model_id="model-b",
+                config={
+                    "socket_dir": tmp_path / "agents",
+                    "output_dir": tmp_path / "runs",
+                },
+            )
+    finally:
+        first.close()
         close_agents()
 
 
