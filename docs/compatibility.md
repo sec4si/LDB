@@ -36,7 +36,7 @@ combination is listed as verified.
 | Global tensor activation patch | N/A | Implemented | Implemented | Not yet |
 | Request-scoped activation patch | N/A | Implemented | Implemented | Not yet |
 | Batch safe-point breakpoint | N/A | Implemented | Implemented | Not yet |
-| Pre-projection head ablation | Yes | TP1 only | TP1 only | Not yet |
+| Pre-projection head ablation | Yes | Implemented | Implemented | Not yet |
 | Visible unfused expert output | Implemented | Implemented | Implemented | Not yet |
 | Single-request scheduler suspension | N/A | Not yet | Not yet | Not yet |
 
@@ -58,6 +58,8 @@ and breakpoints fail closed on expert-output hooks. Router-logit hooks remain
 token-aligned and request-addressable. LDB does not claim visibility inside an
 opaque fused-MoE kernel.
 
-Pre-projection head ablation uses exact contiguous head slices in Transformers and
-TP1 serving runtimes. It fails closed when `tp_size > 1`; a global head index cannot
-be mapped safely until the adapter exposes backend-specific local head ownership.
+Pre-projection head ablation uses exact contiguous head slices. In tensor-parallel
+serving, adapters publish authoritative `tp_rank` and `tp_size` values. LDB maps the
+global head index to the owning rank, applies a local index there, and leaves other
+ranks unchanged. Non-divisible head layouts or missing ownership metadata fail
+closed.

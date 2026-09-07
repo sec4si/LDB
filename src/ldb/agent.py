@@ -105,6 +105,7 @@ class AgentRuntime:
         self.graph_control = graph_control
         self._events: deque[LiveTraceEvent] = deque(maxlen=max_events)
         self._patches: dict[str, LiveIntervention] = {}
+        self._execution_patches: dict[str, LiveIntervention | None] = {}
         self._replacement_tensors: dict[str, Any] = {}
         self._graph_slots: dict[str, GraphControlSlot] = {}
         self._graph_trace_slots: dict[str, GraphTraceSlot] = {}
@@ -282,7 +283,7 @@ class AgentRuntime:
             if patch.token is not None and not patch.request_ids:
                 raise ValueError("Live token selectors require at least one request ID")
             _validate_live_patch(patch)
-            self._validate_topology_patch(patch)
+            execution_patch = self._execution_patch(patch)
             if self.graph_control:
                 _validate_graph_patch(patch)
             replacement: Any
@@ -295,6 +296,7 @@ class AgentRuntime:
                 if patch.patch_id in self._patches:
                     raise ValueError(f"Patch ID already exists: {patch.patch_id}")
                 self._patches[patch.patch_id] = patch
+                self._execution_patches[patch.patch_id] = execution_patch
                 if replacement is None:
                     self._replacement_tensors.pop(patch.patch_id, None)
                 else:
@@ -305,6 +307,7 @@ class AgentRuntime:
             patch_id = str(params["patch_id"])
             with self._lock:
                 removed = self._patches.pop(patch_id, None)
+                self._execution_patches.pop(patch_id, None)
                 self._replacement_tensors.pop(patch_id, None)
             self._refresh_graph_slots()
             return {"removed": removed is not None}
@@ -389,13 +392,30 @@ class AgentRuntime:
                 + ", ".join(unaddressable)
             )
 
-    def _validate_topology_patch(self, patch: LiveIntervention) -> None:
+    def _execution_patch(self, patch: LiveIntervention) -> LiveIntervention | None:
+        if patch.operation is not InterventionKind.HEAD_ABLATE:
+            return patch
         tp_size = int(self.topology.get("tp_size", 1))
-        if patch.operation is InterventionKind.HEAD_ABLATE and tp_size > 1:
+        if tp_size == 1:
+            return patch
+        if "tp_rank" not in self.topology:
             raise ValueError(
-                "Live head_ablate is unavailable for tensor-parallel runtimes because "
-                "global-to-local head ownership is not established"
+                "Tensor-parallel head_ablate requires an authoritative tp_rank"
             )
+        assert patch.head is not None
+        assert patch.num_heads is not None
+        if patch.num_heads % tp_size:
+            raise ValueError("Global attention head count must be divisible by tp_size")
+        tp_rank = int(self.topology["tp_rank"])
+        if tp_rank < 0 or tp_rank >= tp_size:
+            raise ValueError("tp_rank must be within tp_size")
+        local_heads = patch.num_heads // tp_size
+        first = tp_rank * local_heads
+        if patch.head < first or patch.head >= first + local_heads:
+            return None
+        return patch.model_copy(
+            update={"head": patch.head - first, "num_heads": local_heads}
+        )
 
     def process_tensor(self, hook: str, tensor: Any) -> Any:
         context = current_batch_context()
@@ -440,10 +460,13 @@ class AgentRuntime:
             patch_ids = []
             for patch in patches:
                 with self._lock:
+                    execution_patch = self._execution_patches.get(patch.patch_id, patch)
                     replacement = self._replacement_tensors.get(patch.patch_id)
+                if execution_patch is None:
+                    continue
                 modified, applied = _apply_intervention(
                     modified,
-                    patch,
+                    execution_patch,
                     context,
                     replacement=replacement,
                 )

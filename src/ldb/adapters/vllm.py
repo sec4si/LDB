@@ -43,8 +43,13 @@ def register_plugin() -> None:
         model = runner.get_model() if hasattr(runner, "get_model") else runner.model
         model_config = worker.vllm_config.model_config
         parallel = worker.vllm_config.parallel_config
+        tp_size = int(getattr(parallel, "tensor_parallel_size", 1))
+        tp_rank = 0
+        if tp_size > 1:
+            distributed = importlib.import_module("vllm.distributed")
+            tp_rank = int(distributed.get_tensor_model_parallel_rank())
         world_size = (
-            int(getattr(parallel, "tensor_parallel_size", 1))
+            tp_size
             * int(getattr(parallel, "pipeline_parallel_size", 1))
             * int(getattr(parallel, "data_parallel_size", 1))
         )
@@ -59,7 +64,8 @@ def register_plugin() -> None:
                 "rank": int(getattr(worker, "rank", 0)),
                 "world_size": world_size,
                 "topology": {
-                    "tp_size": int(getattr(parallel, "tensor_parallel_size", 1)),
+                    "tp_rank": tp_rank,
+                    "tp_size": tp_size,
                     "pp_size": int(getattr(parallel, "pipeline_parallel_size", 1)),
                     "dp_size": int(getattr(parallel, "data_parallel_size", 1)),
                 },

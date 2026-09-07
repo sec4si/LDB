@@ -74,13 +74,13 @@ def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
         vllm_config = SimpleNamespace(
             model_config=SimpleNamespace(model="test-model"),
             parallel_config=SimpleNamespace(
-                tensor_parallel_size=1,
+                tensor_parallel_size=2,
                 pipeline_parallel_size=1,
                 data_parallel_size=1,
             ),
         )
-        rank = 0
-        world_size = 1
+        rank = 1
+        world_size = 2
 
         def load_model(self) -> str:
             return "loaded"
@@ -94,6 +94,8 @@ def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
             return SimpleNamespace(Worker=Worker)
         if name == "vllm.v1.worker.gpu_model_runner":
             return SimpleNamespace(GPUModelRunner=GPUModelRunner)
+        if name == "vllm.distributed":
+            return SimpleNamespace(get_tensor_model_parallel_rank=lambda: 1)
         raise ImportError(name)
 
     monkeypatch.setenv("LDB_ENABLE", "1")
@@ -110,6 +112,8 @@ def test_vllm_plugin_wraps_worker_model_loading(monkeypatch) -> None:
     assert result == "loaded"
     assert installed[0][1]["backend"] == "vllm"
     assert installed[0][1]["model_id"] == "test-model"
+    assert installed[0][1]["config"]["topology"]["tp_rank"] == 1
+    assert installed[0][1]["config"]["topology"]["tp_size"] == 2
 
 
 def test_vllm_plugin_fails_closed_without_request_context_boundary(monkeypatch) -> None:

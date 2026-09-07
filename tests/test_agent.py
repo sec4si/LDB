@@ -538,7 +538,7 @@ def test_live_head_ablation_rejects_unknown_tensor_parallel_ownership(
     ).start()
     agent.register_hook("block.0.attention.heads")
     try:
-        with pytest.raises(RuntimeError, match="global-to-local head ownership"):
+        with pytest.raises(RuntimeError, match="requires an authoritative tp_rank"):
             AgentClient(agent.socket_path).call(
                 "patch.set",
                 {
@@ -550,6 +550,51 @@ def test_live_head_ablation_rejects_unknown_tensor_parallel_ownership(
                 },
             )
         assert not agent.dispatch("patch.list", {})
+    finally:
+        agent.close()
+
+
+@pytest.mark.parametrize(
+    ("tp_rank", "expected", "applied"),
+    [
+        (0, [[1.0, 2.0, 3.0, 4.0]], False),
+        (1, [[1.0, 2.0, 0.0, 0.0]], True),
+    ],
+)
+def test_live_head_ablation_maps_global_head_to_owning_tp_rank(
+    tmp_path: Path, tp_rank: int, expected: list[list[float]], applied: bool
+) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / f"agents-{tp_rank}",
+        output_dir=tmp_path / "runs",
+        rank=tp_rank,
+        world_size=2,
+        topology={"tp_rank": tp_rank, "tp_size": 2},
+    ).start()
+    hook = "block.0.attention.heads"
+    agent.register_hook(hook)
+    try:
+        client = AgentClient(agent.socket_path)
+        client.call("arm", {"hooks": [hook]})
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "head-3",
+                "hook": hook,
+                "operation": "head_ablate",
+                "head": 3,
+                "num_heads": 4,
+            },
+        )
+        output = agent.process_tensor(hook, torch.tensor([[1.0, 2.0, 3.0, 4.0]]))
+        assert output.tolist() == expected
+        event = client.call("events")[0]
+        assert ("head-3" in event["patch_ids"]) is applied
+        assert client.call("patch.list")[0]["head"] == 3
+        assert client.call("patch.list")[0]["num_heads"] == 4
     finally:
         agent.close()
 
