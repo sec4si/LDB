@@ -282,6 +282,7 @@ class AgentRuntime:
             if patch.token is not None and not patch.request_ids:
                 raise ValueError("Live token selectors require at least one request ID")
             _validate_live_patch(patch)
+            self._validate_topology_patch(patch)
             if self.graph_control:
                 _validate_graph_patch(patch)
             replacement: Any
@@ -386,6 +387,14 @@ class AgentRuntime:
                 "Request-scoped control requires token-aligned hooks; expert-local rows are "
                 "not request-addressable: "
                 + ", ".join(unaddressable)
+            )
+
+    def _validate_topology_patch(self, patch: LiveIntervention) -> None:
+        tp_size = int(self.topology.get("tp_size", 1))
+        if patch.operation is InterventionKind.HEAD_ABLATE and tp_size > 1:
+            raise ValueError(
+                "Live head_ablate is unavailable for tensor-parallel runtimes because "
+                "global-to-local head ownership is not established"
             )
 
     def process_tensor(self, hook: str, tensor: Any) -> Any:

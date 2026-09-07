@@ -525,6 +525,35 @@ def test_request_scoped_trace_requires_authoritative_context(tmp_path: Path) -> 
         agent.close()
 
 
+def test_live_head_ablation_rejects_unknown_tensor_parallel_ownership(
+    tmp_path: Path,
+) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        topology={"tp_size": 2},
+    ).start()
+    agent.register_hook("block.0.attention.heads")
+    try:
+        with pytest.raises(RuntimeError, match="global-to-local head ownership"):
+            AgentClient(agent.socket_path).call(
+                "patch.set",
+                {
+                    "patch_id": "head-17",
+                    "hook": "block.0.attention.heads",
+                    "operation": "head_ablate",
+                    "head": 17,
+                    "num_heads": 32,
+                },
+            )
+        assert not agent.dispatch("patch.list", {})
+    finally:
+        agent.close()
+
+
 def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

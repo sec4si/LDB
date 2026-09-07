@@ -87,6 +87,10 @@ and router-logit hooks retain the continuous batch layout. Individual expert-out
 hooks contain only routed tokens, so request-scoped traces, patches, and breakpoints
 targeting them are rejected instead of guessing an invalid row mapping.
 
+Live `head_ablate` is limited to TP1. Tensor-parallel attention projections receive
+local head shards, and LDB does not translate a global head index until the runtime
+adapter can prove that rank's ownership mapping.
+
 Patch and breakpoint IDs are immutable while installed. Remove an existing ID
 before reusing it. Reversible multi-rank commands snapshot prior state before
 mutation and restore successful ranks if another rank fails.
