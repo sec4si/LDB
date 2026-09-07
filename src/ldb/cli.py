@@ -11,7 +11,6 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 from rich.table import Table
-from safetensors.torch import load_file
 
 from ldb import __version__
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
@@ -191,6 +190,8 @@ def inspect_features(
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
 ) -> None:
     """Inspect top SAE features in a captured activation."""
+
+    from safetensors.torch import load_file
 
     manifest = load_manifest(bundle)
     matches = [event for event in load_events(bundle) if event.hook == hook and event.tensor_file]

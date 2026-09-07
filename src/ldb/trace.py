@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import TypeAdapter
-from safetensors.torch import save_file
 
 from ldb.models import HookPoint, RunManifest, TensorSummary, TraceEvent
 
@@ -46,6 +45,7 @@ class RunBundleRecorder:
 
     def record(self, hook: HookPoint, tensor: object, *, capture: bool) -> TraceEvent:
         import torch
+        from safetensors.torch import save_file
 
         if not isinstance(tensor, torch.Tensor):
             raise TypeError(f"Expected torch.Tensor at {hook.name}, got {type(tensor).__name__}")

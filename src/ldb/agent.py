@@ -15,8 +15,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
-from safetensors.torch import save_file
-
 from ldb.context import BatchContext, current_batch_context
 from ldb.graph import GraphControlSlot, GraphTraceSlot
 from ldb.interventions import apply_tensor_operation, load_intervention_tensor
@@ -532,6 +530,8 @@ class AgentRuntime:
             slot.update(scale=scale, bias=bias)
 
     def _capture_tensor(self, sequence: int, tensor: Any) -> str:
+        from safetensors.torch import save_file
+
         _prepare_private_directory(self.tensor_dir)
         path = self.tensor_dir / f"{sequence:08d}.safetensors"
         save_file({"activation": tensor.detach().contiguous().cpu()}, path)
@@ -539,6 +539,8 @@ class AgentRuntime:
         return str(path)
 
     def _capture_breakpoint_tensor(self, hit_id: str, tensor: Any) -> str:
+        from safetensors.torch import save_file
+
         _prepare_private_directory(self.tensor_dir)
         path = self.tensor_dir / f"breakpoint-{hit_id}.safetensors"
         save_file({"activation": tensor.detach().contiguous().cpu()}, path)

@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from safetensors.torch import load_file
-
 from ldb.models import InterventionKind
 
 
 def load_intervention_tensor(path_value: str | Path) -> Any:
+    from safetensors.torch import load_file
+
     path = Path(path_value).expanduser()
     tensors = load_file(path)
     if "activation" in tensors:

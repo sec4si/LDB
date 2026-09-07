@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import Field
-from safetensors.torch import load_file
 
 from ldb.models import FrozenModel
 
@@ -37,6 +36,7 @@ class SAEDictionary:
 
     def __init__(self, path: Path) -> None:
         import torch
+        from safetensors.torch import load_file
 
         tensors = load_file(path)
         required = {"encoder", "decoder"}
