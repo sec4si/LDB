@@ -15,6 +15,7 @@ from rich.table import Table
 from ldb import __version__
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
+from ldb.compatibility import AUDITED_RUNTIME_VERSIONS
 from ldb.identity import resolve_tokenizer_identity
 from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
@@ -84,6 +85,18 @@ def version() -> None:
     """Print the LDB version."""
 
     console.print(__version__)
+
+
+@app.command()
+def runtimes() -> None:
+    """Print source-audited serving-runtime versions."""
+
+    console.print_json(
+        data={
+            backend: sorted(versions)
+            for backend, versions in sorted(AUDITED_RUNTIME_VERSIONS.items())
+        }
+    )
 
 
 @app.command("identity")

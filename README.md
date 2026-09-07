@@ -90,6 +90,7 @@ remain dormant unless `LDB_ENABLE=1` is set explicitly.
 The current source-audited adapters accept vLLM `0.28.0` and SGLang `0.5.19`.
 Other versions fail closed unless an operator deliberately sets
 `LDB_ALLOW_UNVERIFIED_RUNTIME=1` for compatibility development.
+Run `ldb runtimes` to print the accepted version set from the installed LDB build.
 
 Resolve the immutable model revision and canonical tokenizer hash without loading
 model weights:
