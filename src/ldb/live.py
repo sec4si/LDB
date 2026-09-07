@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from ldb.models import FrozenModel, InterventionKind, TensorSummary
+from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, InterventionKind, TensorSummary
 
 AGENT_PROTOCOL_VERSION = "ldb.agent/v1alpha1"
 
@@ -29,6 +29,7 @@ class AgentCapability(StrEnum):
 
 class AgentDescriptor(FrozenModel):
     protocol_version: Literal["ldb.agent/v1alpha1"] = "ldb.agent/v1alpha1"
+    hook_schema_version: str = HOOK_SCHEMA_VERSION
     backend: str
     backend_version: str
     model_id: str

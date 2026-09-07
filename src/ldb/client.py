@@ -186,6 +186,7 @@ def _read_line(connection: socket.socket, *, limit: int = 16 * 1024 * 1024) -> b
 
 def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
     identity_fields = (
+        "hook_schema_version",
         "backend",
         "backend_version",
         "model_id",

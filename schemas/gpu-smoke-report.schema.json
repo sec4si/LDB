@@ -35,6 +35,11 @@
           "title": "Capabilities",
           "type": "array"
         },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha1",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
         "model_id": {
           "title": "Model Id",
           "type": "string"

@@ -615,6 +615,12 @@ def _load_live_patch(client: AgentGroupClient, arguments: list[str]) -> None:
         )
     if tokenizer_hashes != {patch.tokenizer_hash}:
         raise ValueError("Patch tokenizer hash does not match the attached agents")
+    hook_schemas = {str(descriptor["hook_schema_version"]) for descriptor in descriptors}
+    if hook_schemas != {patch.hook_schema_version}:
+        raise ValueError(
+            f"Patch hook schema {patch.hook_schema_version!r} does not match agents: "
+            f"{sorted(hook_schemas)}"
+        )
 
     installed: list[str] = []
     try:

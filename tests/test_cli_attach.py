@@ -157,3 +157,42 @@ interventions:
         assert "requires model revision and tokenizer hash" in str(result.exception)
     finally:
         agent.close()
+
+
+def test_attach_rejects_patch_with_different_hook_schema(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        model_revision="revision",
+        tokenizer_hash="hash",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    patch_file = tmp_path / "patch.yaml"
+    patch_file.write_text(
+        """schema_version: ldb.patch/v1alpha1
+patch_id: incompatible-hooks
+description: Test patch.
+model_id: test-model
+model_revision: revision
+tokenizer_hash: hash
+adapter: test
+hook_schema_version: ldb.hooks/v0
+interventions:
+  - hook: block.0.residual.post
+    operation: ablate
+    request_scoped: false
+""",
+        encoding="utf-8",
+    )
+    try:
+        result = runner.invoke(
+            app,
+            ["attach", str(agent.socket_path), "-e", f"patch-load {patch_file}"],
+        )
+        assert result.exit_code == 1
+        assert "hook schema" in str(result.exception)
+        assert not agent.dispatch("patch.list", {})
+    finally:
+        agent.close()

@@ -10,7 +10,8 @@ Run `ldb identity <model>` before server startup. It resolves the requested Hugg
 Face revision to an immutable commit and hashes the tokenizer graph, special-token
 map, and chat template using the same function as the offline Transformers adapter.
 Pass those values as `LDB_MODEL_REVISION` and `LDB_TOKENIZER_HASH`; Neural Patch
-loading fails closed when they are absent or different.
+loading fails closed when they are absent or different. The agent also publishes
+its normalized hook-schema version, which must match the patch.
 
 ```text
 ldb CLI
