@@ -16,6 +16,7 @@ from safetensors.torch import load_file
 from ldb import __version__
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
+from ldb.identity import resolve_tokenizer_identity
 from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
@@ -84,6 +85,22 @@ def version() -> None:
     """Print the LDB version."""
 
     console.print(__version__)
+
+
+@app.command("identity")
+def identity(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON identity")] = None,
+) -> None:
+    """Resolve an immutable model revision and canonical tokenizer hash."""
+
+    resolved = resolve_tokenizer_identity(model, revision=revision)
+    content = resolved.model_dump_json(indent=2) + "\n"
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content, encoding="utf-8")
+    console.print_json(content)
 
 
 @app.command()

@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Sequence
 from importlib.metadata import version
 from typing import Any, cast
 
+from ldb.identity import hash_tokenizer
 from ldb.models import HookPhase, HookPoint
 from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
 
@@ -84,18 +83,7 @@ class TransformersAdapter:
 
     @property
     def tokenizer_hash(self) -> str:
-        backend = getattr(self.tokenizer, "backend_tokenizer", None)
-        backend_json = backend.to_str() if backend is not None else None
-        payload = json.dumps(
-            {
-                "backend": backend_json,
-                "special_tokens_map": self.tokenizer.special_tokens_map,
-                "chat_template": getattr(self.tokenizer, "chat_template", None),
-            },
-            sort_keys=True,
-            ensure_ascii=True,
-        ).encode()
-        return hashlib.sha256(payload).hexdigest()
+        return hash_tokenizer(self.tokenizer)
 
     def _block_path(self) -> str:
         candidates = ("transformer.h", "model.layers", "model.model.layers")

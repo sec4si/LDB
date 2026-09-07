@@ -88,6 +88,16 @@ written only for hook names matched by `--capture`.
 Install LDB in the same Python environment as the serving runtime. Runtime plugins
 remain dormant unless `LDB_ENABLE=1` is set explicitly.
 
+Resolve the immutable model revision and canonical tokenizer hash without loading
+model weights:
+
+```console
+ldb identity <model> --output model-identity.json
+```
+
+Use the returned `model_revision` and `tokenizer_hash` values for
+`LDB_MODEL_REVISION` and `LDB_TOKENIZER_HASH` below.
+
 SGLang:
 
 ```console

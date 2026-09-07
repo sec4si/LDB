@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "title": "Model Revision",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.identity/v1alpha1",
+      "default": "ldb.identity/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "model_id",
+    "model_revision",
+    "tokenizer_hash"
+  ],
+  "title": "TokenizerIdentity",
+  "type": "object"
+}

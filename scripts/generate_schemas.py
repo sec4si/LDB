@@ -20,7 +20,7 @@ from ldb.live import (
     LiveIntervention,
     LiveTraceEvent,
 )
-from ldb.models import NeuralPatch, RunManifest
+from ldb.models import NeuralPatch, RunManifest, TokenizerIdentity
 from ldb.sae import FeatureReport
 from ldb.search import (
     CandidateSet,
@@ -47,6 +47,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "live-breakpoint": LiveBreakpoint,
     "live-intervention": LiveIntervention,
     "live-trace-event": LiveTraceEvent,
+    "model-identity": TokenizerIdentity,
     "neural-patch": NeuralPatch,
     "run-manifest": RunManifest,
     "search-report": SearchReport,

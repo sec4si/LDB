@@ -75,6 +75,13 @@ class RunManifest(FrozenModel):
     parent_run_id: str | None = None
 
 
+class TokenizerIdentity(FrozenModel):
+    schema_version: Literal["ldb.identity/v1alpha1"] = "ldb.identity/v1alpha1"
+    model_id: str
+    model_revision: str
+    tokenizer_hash: str
+
+
 class InterventionKind(StrEnum):
     SCALE = "scale"
     ABLATE = "ablate"

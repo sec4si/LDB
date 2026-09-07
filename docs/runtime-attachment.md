@@ -6,6 +6,12 @@ LDB uses prepared attachment. The serving process loads a dormant runtime plugin
 startup, while the CLI may attach and detach later without restarting the model
 server. LDB does not inject code into an arbitrary unprepared process.
 
+Run `ldb identity <model>` before server startup. It resolves the requested Hugging
+Face revision to an immutable commit and hashes the tokenizer graph, special-token
+map, and chat template using the same function as the offline Transformers adapter.
+Pass those values as `LDB_MODEL_REVISION` and `LDB_TOKENIZER_HASH`; Neural Patch
+loading fails closed when they are absent or different.
+
 ```text
 ldb CLI
    |
