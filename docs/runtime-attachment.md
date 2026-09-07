@@ -2,11 +2,28 @@
 
 ## Attachment contract
 
-LDB uses prepared attachment. The serving process loads a dormant runtime plugin at
-startup, while the CLI may attach and detach later without restarting the model
-server. LDB does not inject code into an arbitrary unprepared process.
+LDB supports two attachment paths. Prepared attachment loads a dormant runtime
+plugin at startup. Linux hot attachment uses `gdb` to load a temporary shared object
+into an already-running CPython worker; its constructor creates a new thread, waits
+for the GIL, discovers the existing model runner, and installs the same runtime
+agent without restarting the server.
 
-Run `ldb identity <model>` before server startup. It resolves the requested Hugging
+```console
+ldb hot-attach <worker-pid> --backend vllm \
+  --model-revision <immutable-model-revision> \
+  --tokenizer-hash <ldb-tokenizer-hash>
+ldb hot-attach <worker-pid> --backend sglang \
+  --model-revision <immutable-model-revision> \
+  --tokenizer-hash <ldb-tokenizer-hash>
+```
+
+Hot attachment is intentionally explicit and local. It verifies process ownership,
+requires an audited runtime version, and fails if it cannot identify a supported
+live runner. It requires Linux, `gdb`, a C compiler plus libc headers, and ptrace
+permission. Repeat the command for each worker PID. The injected bootstrap reports
+the exact agent socket only after hook installation succeeds.
+
+For prepared attachment, run `ldb identity <model>` before server startup. It resolves the requested Hugging
 Face revision to an immutable commit and hashes the tokenizer graph, special-token
 map, and chat template using the same function as the offline Transformers adapter.
 Pass those values as `LDB_MODEL_REVISION` and `LDB_TOKENIZER_HASH`; Neural Patch
@@ -119,6 +136,11 @@ glob that matches no installed hook. Use `hooks` before setting controls instead
 discovering misspellings after a silent no-op.
 
 ## Runtime integration
+
+Hot attachment patches the already-loaded runner class's execution boundary before
+installing model hooks. Consequently, subsequent batches receive the same request
+context propagation as prepared attachment. Existing CUDA Graphs do not contain
+newly injected hooks; use eager mode for complete hot-attached tracing and patching.
 
 ### SGLang
 

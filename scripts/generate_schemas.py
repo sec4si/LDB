@@ -7,7 +7,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from ldb.attention import AttentionReport
 from ldb.causal import AblationReport, CausalGraphReport, CausalReport
+from ldb.diagnosis import DiagnosisReport
 from ldb.live import (
     AgentDescriptor,
     AgentRequest,
@@ -32,6 +34,7 @@ from ldb.verification import VerificationReport
 
 SCHEMAS: dict[str, type[BaseModel]] = {
     "ablation-report": AblationReport,
+    "attention-report": AttentionReport,
     "agent-descriptor": AgentDescriptor,
     "agent-request": AgentRequest,
     "agent-response": AgentResponse,
@@ -41,6 +44,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "candidate-set": CandidateSet,
     "causal-graph-report": CausalGraphReport,
     "causal-report": CausalReport,
+    "diagnosis-report": DiagnosisReport,
     "evaluation-suite": EvaluationSuite,
     "feature-report": FeatureReport,
     "gpu-smoke-report": GpuSmokeReport,

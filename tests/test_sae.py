@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from safetensors.torch import save_file
 
-from ldb.sae import SAEDictionary, inspect_sae_features
+from ldb.sae import SAEDictionary, inspect_sae_features, inspect_sae_tokens
 
 torch = pytest.importorskip("torch")
 
@@ -26,4 +26,11 @@ def test_sae_inspector_ranks_features_by_peak(tmp_path: Path) -> None:
     assert dictionary.feature_count == 2
     assert [feature.feature for feature in features] == [0, 1]
     assert features[0].peak == 3.0
+    assert features[0].peak_token == 1
     assert features[1].active_fraction == 0.5
+
+    tokens = inspect_sae_tokens(torch.tensor([[[1.0, 1.0], [3.0, -1.0]]]), dictionary, top_k=1)
+    assert tokens[0].features[0].feature == 1
+    assert tokens[0].features[0].value == 2.0
+    assert tokens[1].features[0].feature == 0
+    assert tokens[1].features[0].value == 3.0

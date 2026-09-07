@@ -17,6 +17,8 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - loading a Hugging Face causal language model through TransformerLens 3.x
   `TransformerBridge`, with a native Transformers fallback;
 - normalizing stable decoder hooks exposed by TransformerLens across model families;
+- inspecting Q/K/V, attention scores and patterns, per-head Z/result activations,
+  and applying semantically axis-safe token/head interventions;
 - recording hook summaries during real inference;
 - selectively capturing tensors as `safetensors`;
 - inspecting portable RunBundles from the terminal;
@@ -31,9 +33,12 @@ LDB is in its initial implementation phase. The first vertical slice supports:
 - clean/corrupt activation patching for causal next-token localization;
 - directed causal propagation graphs from downstream activation recovery;
 - canonical SAE dictionary loading and top-feature inspection;
+- reporting global and per-token SAE feature activations;
 - request-scoped single-feature SAE scaling;
 - regression-aware patch search, reproducible export, and verification;
 - bounded heterogeneous multi-intervention search with an explicit no-op;
+- automatic failure localization followed by regression-aware minimal patch search;
+- Linux hot attachment to already-running vLLM and SGLang CPython workers;
 - opt-in fixed-address CUDA Graph control and summary-trace slots.
 
 Scheduler-isolated single-request breakpoints are not yet implemented. CUDA Graph
@@ -73,6 +78,17 @@ ldb ablate sshleifer/tiny-gpt2 \
   --target-token-id 16046 \
   --token -1 \
   --output ablation-report.json
+
+ldb attention sshleifer/tiny-gpt2 \
+  --prompt "The Eiffel Tower is in" \
+  --output attention-report.json
+
+ldb diagnose sshleifer/tiny-gpt2 \
+  --clean-prompt "The Eiffel Tower is in" \
+  --failing-prompt "The Eiffel Tower is on" \
+  --target-token-id 16046 \
+  --output diagnosis-report.json \
+  --patch-output candidate-patch.yaml
 
 ldb search sshleifer/tiny-gpt2 \
   --suite examples/suites/next-token.yaml \
@@ -147,6 +163,22 @@ ldb attach /tmp/ldb-$(id -u)/agents --instance production-a
 (ldb) disarm
 ```
 
+On Linux, an already-running worker can be instrumented without a server restart:
+
+```console
+ldb hot-attach <worker-pid> --backend vllm \
+  --model-revision <immutable-model-revision> \
+  --tokenizer-hash <ldb-tokenizer-hash>
+ldb hot-attach <worker-pid> --backend sglang \
+  --model-revision <immutable-model-revision> \
+  --tokenizer-hash <ldb-tokenizer-hash>
+```
+
+Hot attachment requires the same UID (or root), `gdb`, a C compiler, libc headers,
+an audited backend version, and LDB's Python dependencies in the target interpreter.
+Repeat it for every worker process in a distributed runtime. Linux ptrace policy may
+require `CAP_SYS_PTRACE` or an equivalent operator-approved setting.
+
 The agent socket, descriptor, and captured tensor files are user-owned and use
 `0600` permissions. Socket and live-output directories use `0700`. Full tensor
 capture is synchronous and intended for isolated debugging requests, not normal
@@ -178,3 +210,5 @@ See [causal ablation](docs/causal-ablation.md) for token-level removal experimen
 and effect interpretation.
 See [TransformerLens integration](docs/transformer-lens.md) for the offline engine
 boundary and normalized hook mapping.
+See [automatic diagnosis](docs/automatic-diagnosis.md) for the one-command causal
+localization and bounded patch-search workflow.

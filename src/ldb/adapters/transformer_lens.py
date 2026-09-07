@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from importlib.metadata import version
 from typing import Any
 
 from ldb.identity import hash_tokenizer
-from ldb.models import HookPhase, HookPoint
+from ldb.models import HookPhase, HookPoint, TensorAxis
 from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
 
 
 class _LensProbeHandle:
-    def __init__(self, hook_point: Any, lens_handle: Any) -> None:
+    def __init__(
+        self, hook_point: Any, lens_handle: Any, on_remove: Callable[[], None] | None = None
+    ) -> None:
         self._hook_point = hook_point
         self._lens_handle = lens_handle
+        self._on_remove = on_remove
 
     def remove(self) -> None:
         if self._lens_handle is None:
@@ -23,6 +26,9 @@ class _LensProbeHandle:
         if self._lens_handle in self._hook_point.fwd_hooks:
             self._hook_point.fwd_hooks.remove(self._lens_handle)
         self._lens_handle = None
+        if self._on_remove is not None:
+            self._on_remove()
+            self._on_remove = None
 
 
 class TransformerLensAdapter:
@@ -64,6 +70,10 @@ class TransformerLensAdapter:
         if not bool(getattr(getattr(_bridge, "adapter", None), "supports_generation", True)):
             raise ValueError("LDB offline causal workflows require an autoregressive model")
         self.revision = getattr(config, "_commit_hash", None) or revision
+        self._result_hook_count = 0
+        self._result_initially_enabled = bool(
+            getattr(getattr(self.model, "cfg", None), "use_attn_result", False)
+        )
         self._hooks = self._discover_hooks()
 
     @property
@@ -94,25 +104,59 @@ class TransformerLensAdapter:
             }
         )
         hooks: list[HookPoint] = []
+        stream = (TensorAxis.BATCH, TensorAxis.TOKEN, TensorAxis.CHANNEL)
+        per_head = (
+            TensorAxis.BATCH,
+            TensorAxis.TOKEN,
+            TensorAxis.HEAD,
+            TensorAxis.CHANNEL,
+        )
+        attention_map = (
+            TensorAxis.BATCH,
+            TensorAxis.HEAD,
+            TensorAxis.QUERY_TOKEN,
+            TensorAxis.KEY_TOKEN,
+        )
         for layer in layers:
             prefix = f"blocks.{layer}"
             specifications = (
-                ("residual.pre", (f"{prefix}.hook_in", f"{prefix}.hook_resid_pre")),
+                (
+                    "residual.pre",
+                    (f"{prefix}.hook_in", f"{prefix}.hook_resid_pre"),
+                    stream,
+                ),
                 (
                     "residual.mid",
                     (f"{prefix}.hook_resid_mid", f"{prefix}.ln2.hook_in"),
+                    stream,
                 ),
-                ("attention.output", (f"{prefix}.attn.hook_out",)),
-                ("mlp.input", (f"{prefix}.mlp.hook_in",)),
-                ("mlp.pre", (f"{prefix}.mlp.hook_pre", f"{prefix}.mlp.in.hook_out")),
+                ("attention.q", (f"{prefix}.attn.hook_q",), per_head),
+                ("attention.k", (f"{prefix}.attn.hook_k",), per_head),
+                ("attention.v", (f"{prefix}.attn.hook_v",), per_head),
+                ("attention.scores", (f"{prefix}.attn.hook_attn_scores",), attention_map),
+                ("attention.pattern", (f"{prefix}.attn.hook_pattern",), attention_map),
+                ("attention.z", (f"{prefix}.attn.hook_z",), per_head),
+                ("attention.result", (f"{prefix}.attn.hook_result",), per_head),
+                ("attention.output", (f"{prefix}.attn.hook_out",), stream),
+                ("mlp.input", (f"{prefix}.mlp.hook_in",), stream),
+                (
+                    "mlp.pre",
+                    (f"{prefix}.mlp.hook_pre", f"{prefix}.mlp.in.hook_out"),
+                    stream,
+                ),
                 (
                     "mlp.activation",
                     (f"{prefix}.mlp.hook_post", f"{prefix}.mlp.out.hook_in"),
+                    stream,
                 ),
-                ("mlp.output", (f"{prefix}.mlp.hook_out",)),
-                ("residual.post", (f"{prefix}.hook_out", f"{prefix}.hook_resid_post")),
+                ("mlp.output", (f"{prefix}.mlp.hook_out",), stream),
+                (
+                    "residual.post",
+                    (f"{prefix}.hook_out", f"{prefix}.hook_resid_post"),
+                    stream,
+                ),
             )
-            for normalized, candidates in specifications:
+            for normalized, candidates, axes in specifications:
                 source = next((name for name in candidates if name in available), None)
                 if source is not None:
                     hooks.append(
@@ -120,6 +164,7 @@ class TransformerLensAdapter:
                             name=f"block.{layer}.{normalized}",
                             module_path=source,
                             phase=HookPhase.POST,
+                            axes=axes,
                         )
                     )
         if not hooks:
@@ -132,26 +177,48 @@ class TransformerLensAdapter:
     def install_probe(self, hook: HookPoint, callback: ProbeCallback) -> ProbeHandle:
         hook_point = self.model.hook_dict[hook.module_path]
         hook_point_spec = hook
+        release = self._prepare_optional_hook(hook)
 
         def probe(tensor: Any, *, hook: Any) -> None:
             del hook
             callback(hook_point_spec, tensor)
 
-        hook_point.add_hook(probe)
-        return _LensProbeHandle(hook_point, hook_point.fwd_hooks[-1])
+        try:
+            hook_point.add_hook(probe)
+        except Exception:
+            release()
+            raise
+        return _LensProbeHandle(hook_point, hook_point.fwd_hooks[-1], release)
 
-    def install_intervention(
-        self, hook: HookPoint, callback: InterventionCallback
-    ) -> ProbeHandle:
+    def install_intervention(self, hook: HookPoint, callback: InterventionCallback) -> ProbeHandle:
         hook_point = self.model.hook_dict[hook.module_path]
         hook_point_spec = hook
+        release = self._prepare_optional_hook(hook)
 
         def intervene(tensor: Any, *, hook: Any) -> Any:
             del hook
             return callback(hook_point_spec, tensor)
 
-        hook_point.add_hook(intervene)
-        return _LensProbeHandle(hook_point, hook_point.fwd_hooks[-1])
+        try:
+            hook_point.add_hook(intervene)
+        except Exception:
+            release()
+            raise
+        return _LensProbeHandle(hook_point, hook_point.fwd_hooks[-1], release)
+
+    def _prepare_optional_hook(self, hook: HookPoint) -> Callable[[], None]:
+        if not hook.name.endswith(".attention.result"):
+            return lambda: None
+        if self._result_hook_count == 0 and not self._result_initially_enabled:
+            self.model.set_use_attn_result(True)
+        self._result_hook_count += 1
+
+        def release() -> None:
+            self._result_hook_count -= 1
+            if self._result_hook_count == 0 and not self._result_initially_enabled:
+                self.model.set_use_attn_result(False)
+
+        return release
 
     def tokenize(self, prompt: str) -> Sequence[int]:
         tokens = self.model.to_tokens(

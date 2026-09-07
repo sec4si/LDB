@@ -21,15 +21,64 @@
         "peak": {
           "title": "Peak",
           "type": "number"
+        },
+        "peak_token": {
+          "minimum": 0,
+          "title": "Peak Token",
+          "type": "integer"
         }
       },
       "required": [
         "feature",
         "peak",
+        "peak_token",
         "mean",
         "active_fraction"
       ],
       "title": "FeatureActivation",
+      "type": "object"
+    },
+    "TokenFeatureActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature",
+        "value"
+      ],
+      "title": "TokenFeatureActivation",
+      "type": "object"
+    },
+    "TokenFeatureReport": {
+      "additionalProperties": false,
+      "properties": {
+        "features": {
+          "items": {
+            "$ref": "#/$defs/TokenFeatureActivation"
+          },
+          "title": "Features",
+          "type": "array"
+        },
+        "token": {
+          "minimum": 0,
+          "title": "Token",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "token",
+        "features"
+      ],
+      "title": "TokenFeatureReport",
       "type": "object"
     }
   },
@@ -65,8 +114,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "ldb.features/v1alpha1",
-      "default": "ldb.features/v1alpha1",
+      "const": "ldb.features/v1alpha2",
+      "default": "ldb.features/v1alpha2",
       "title": "Schema Version",
       "type": "string"
     },
@@ -79,6 +128,14 @@
       "minimum": 0,
       "title": "Token Count",
       "type": "integer"
+    },
+    "tokens": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TokenFeatureReport"
+      },
+      "title": "Tokens",
+      "type": "array"
     }
   },
   "required": [

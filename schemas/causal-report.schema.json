@@ -7,6 +7,19 @@
           "title": "Effect",
           "type": "number"
         },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
         "hook": {
           "title": "Hook",
           "type": "string"
@@ -68,8 +81,21 @@
       "title": "Created At",
       "type": "string"
     },
+    "head_index": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Head Index"
+    },
     "hook_schema_version": {
-      "default": "ldb.hooks/v1alpha1",
+      "default": "ldb.hooks/v1alpha2",
       "title": "Hook Schema Version",
       "type": "string"
     },

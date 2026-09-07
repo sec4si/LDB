@@ -31,13 +31,16 @@ def apply_tensor_operation(
     num_heads: int | None = None,
     feature: Any = None,
     token: int | None = None,
+    token_axis: int | None = None,
+    head_axis: int | None = None,
 ) -> Any:
     import torch
 
     if token is not None:
         if tensor.ndim == 0:
             raise ValueError("Token selection requires a tensor with at least one dimension")
-        axis = tensor.ndim - 2 if tensor.ndim >= 3 else 0
+        axis = token_axis if token_axis is not None else tensor.ndim - 2 if tensor.ndim >= 3 else 0
+        axis %= tensor.ndim
         size = tensor.shape[axis]
         index = token if token >= 0 else size + token
         if index < 0 or index >= size:
@@ -55,6 +58,7 @@ def apply_tensor_operation(
             head=head,
             num_heads=num_heads,
             feature=feature,
+            head_axis=head_axis,
         )
         return modified
 
@@ -81,6 +85,17 @@ def apply_tensor_operation(
     if operation is InterventionKind.HEAD_ABLATE:
         assert head is not None
         assert num_heads is not None
+        if head_axis is not None:
+            axis = head_axis % tensor.ndim
+            if tensor.shape[axis] != num_heads:
+                raise ValueError(
+                    f"Head axis has size {tensor.shape[axis]}, expected {num_heads} heads"
+                )
+            selector = [slice(None)] * tensor.ndim
+            selector[axis] = head
+            modified = tensor.clone()
+            modified[tuple(selector)] = 0
+            return modified
         if not tensor.shape or tensor.shape[-1] % num_heads:
             raise ValueError(
                 f"Activation width {tensor.shape[-1:]} is not divisible by {num_heads} heads"

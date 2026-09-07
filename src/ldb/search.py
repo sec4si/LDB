@@ -24,6 +24,7 @@ from ldb.models import (
     Intervention,
     InterventionKind,
     NeuralPatch,
+    TensorAxis,
 )
 from ldb.offline import install_interventions, remove_interventions
 
@@ -194,12 +195,13 @@ def search_scale_patches(
     for hook in hooks:
         for scale in scale_candidates:
 
-            def apply_scale(_: HookPoint, tensor: Any, factor: float = scale) -> Any:
+            def apply_scale(selected_hook: HookPoint, tensor: Any, factor: float = scale) -> Any:
                 return apply_tensor_operation(
                     tensor,
                     InterventionKind.SCALE,
                     value=factor,
                     token=token_index,
+                    token_axis=selected_hook.axis(TensorAxis.TOKEN, TensorAxis.QUERY_TOKEN),
                 )
 
             handle = runtime.install_intervention(hook, apply_scale)

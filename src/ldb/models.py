@@ -8,7 +8,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-HOOK_SCHEMA_VERSION: Final = "ldb.hooks/v1alpha1"
+HOOK_SCHEMA_VERSION: Final = "ldb.hooks/v1alpha2"
 RUN_SCHEMA_VERSION: Final = "ldb.run/v1alpha1"
 PATCH_SCHEMA_VERSION: Final = "ldb.patch/v1alpha1"
 
@@ -32,10 +32,28 @@ class HookPhase(StrEnum):
     POST = "post"
 
 
+class TensorAxis(StrEnum):
+    """Semantic axes used to select tokens and heads without shape guessing."""
+
+    BATCH = "batch"
+    TOKEN = "token"
+    HEAD = "head"
+    QUERY_TOKEN = "query_token"
+    KEY_TOKEN = "key_token"
+    CHANNEL = "channel"
+
+
 class HookPoint(FrozenModel):
     name: str
     module_path: str
     phase: HookPhase
+    axes: tuple[TensorAxis, ...] = ()
+
+    def axis(self, *candidates: TensorAxis) -> int | None:
+        for candidate in candidates:
+            if candidate in self.axes:
+                return self.axes.index(candidate)
+        return None
 
 
 class TensorSummary(FrozenModel):

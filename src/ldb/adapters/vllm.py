@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import gc
 import importlib
 import os
 from typing import Any
@@ -101,3 +102,81 @@ def _wrap_model_runner(module_path: str) -> bool:
     execute_model._ldb_wrapped = True  # type: ignore[attr-defined]
     runner_class.execute_model = execute_model
     return True
+
+
+def install_running_runtimes(
+    *, model_id: str | None = None, config: dict[str, Any] | None = None
+) -> list[Any]:
+    """Discover already-created GPUModelRunner objects and instrument their models."""
+
+    backend_version = _package_version("vllm")
+    require_audited_runtime("vllm", backend_version)
+    runner_classes: list[type[Any]] = []
+    for module_path in (
+        "vllm.v1.worker.gpu_model_runner",
+        "vllm.v1.worker.gpu.model_runner",
+    ):
+        if _wrap_model_runner(module_path):
+            runner_class = importlib.import_module(module_path).GPUModelRunner
+            if runner_class not in runner_classes:
+                runner_classes.append(runner_class)
+    if not runner_classes:
+        raise RuntimeError("No supported vLLM GPUModelRunner class is loaded")
+
+    agents = []
+    for candidate in gc.get_objects():
+        try:
+            is_runner = isinstance(candidate, tuple(runner_classes))
+        except ReferenceError:
+            continue
+        if not is_runner:
+            continue
+        model = candidate.get_model() if hasattr(candidate, "get_model") else candidate.model
+        runtime_config = _running_config(candidate, config or {})
+        configured_model = model_id or _running_model_id(candidate)
+        agents.append(
+            install_model_runtime(
+                model,
+                backend="vllm",
+                backend_version=backend_version,
+                model_id=configured_model,
+                config=runtime_config,
+            )
+        )
+    if not agents:
+        raise RuntimeError("No live vLLM GPUModelRunner instance was found in this process")
+    return agents
+
+
+def _running_model_id(runner: Any) -> str:
+    values = (
+        getattr(getattr(getattr(runner, "vllm_config", None), "model_config", None), "model", None),
+        getattr(getattr(runner, "model_config", None), "model", None),
+    )
+    return str(next((value for value in values if value is not None), "unknown"))
+
+
+def _running_config(runner: Any, overrides: dict[str, Any]) -> dict[str, Any]:
+    values = dict(overrides)
+    values["request_context"] = True
+    model = runner.get_model() if hasattr(runner, "get_model") else runner.model
+    values.setdefault(
+        "model_revision", getattr(getattr(model, "config", None), "_commit_hash", None)
+    )
+    parallel = getattr(getattr(runner, "vllm_config", None), "parallel_config", None)
+    if parallel is not None:
+        tp_size = int(getattr(parallel, "tensor_parallel_size", 1))
+        pp_size = int(getattr(parallel, "pipeline_parallel_size", 1))
+        dp_size = int(getattr(parallel, "data_parallel_size", 1))
+        rank = int(getattr(runner, "rank", os.environ.get("RANK", 0)))
+        tp_rank = getattr(runner, "tp_rank", None)
+        if tp_rank is None and tp_size > 1:
+            distributed = importlib.import_module("vllm.distributed")
+            tp_rank = distributed.get_tensor_model_parallel_rank()
+        values.setdefault("rank", rank)
+        values.setdefault("world_size", max(rank + 1, tp_size * pp_size * dp_size))
+        topology = {"tp_size": tp_size, "pp_size": pp_size, "dp_size": dp_size}
+        if tp_rank is not None:
+            topology["tp_rank"] = int(tp_rank)
+        values.setdefault("topology", topology)
+    return values

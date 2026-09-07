@@ -187,3 +187,75 @@ def test_vllm_runner_context_is_resolved_inside_execute_model(monkeypatch) -> No
     assert output == "complete"
     assert [span.request_id for span in observed[0].requests] == ["request-b", "request-a"]
     assert current_batch_context() is None
+
+
+def test_hot_vllm_install_discovers_existing_runner(monkeypatch) -> None:
+    installed = []
+
+    class GPUModelRunner:
+        model = SimpleNamespace(config=SimpleNamespace(_commit_hash="commit"))
+        rank = 0
+        vllm_config = SimpleNamespace(
+            model_config=SimpleNamespace(model="live-model"),
+            parallel_config=SimpleNamespace(
+                tensor_parallel_size=1,
+                pipeline_parallel_size=1,
+                data_parallel_size=1,
+            ),
+        )
+
+        def execute_model(self, scheduler_output):
+            return scheduler_output
+
+    runner = GPUModelRunner()
+
+    def import_module(name):
+        if name == "vllm.v1.worker.gpu_model_runner":
+            return SimpleNamespace(GPUModelRunner=GPUModelRunner)
+        raise ImportError(name)
+
+    monkeypatch.setattr(vllm_adapter.importlib, "import_module", import_module)
+    monkeypatch.setattr(vllm_adapter.gc, "get_objects", lambda: [runner])
+    monkeypatch.setattr(
+        vllm_adapter,
+        "install_model_runtime",
+        lambda *args, **kwargs: installed.append((args, kwargs)) or "agent",
+    )
+
+    agents = vllm_adapter.install_running_runtimes()
+
+    assert agents == ["agent"]
+    assert installed[0][1]["model_id"] == "live-model"
+    assert installed[0][1]["config"]["request_context"] is True
+
+
+def test_hot_sglang_install_discovers_existing_runner(monkeypatch) -> None:
+    installed = []
+
+    class ModelRunner:
+        model = SimpleNamespace(config=SimpleNamespace(_commit_hash="commit"))
+        server_args = SimpleNamespace(model_path="live-model")
+        tp_rank = 0
+        tp_size = 1
+
+        def forward(self, forward_batch):
+            return forward_batch
+
+    runner = ModelRunner()
+    monkeypatch.setattr(
+        sglang_adapter.importlib,
+        "import_module",
+        lambda _: SimpleNamespace(ModelRunner=ModelRunner),
+    )
+    monkeypatch.setattr(sglang_adapter.gc, "get_objects", lambda: [runner])
+    monkeypatch.setattr(
+        sglang_adapter,
+        "install_model_runtime",
+        lambda *args, **kwargs: installed.append((args, kwargs)) or "agent",
+    )
+
+    agents = sglang_adapter.install_running_runtimes()
+
+    assert agents == ["agent"]
+    assert installed[0][1]["model_id"] == "live-model"
+    assert installed[0][1]["config"]["request_context"] is True

@@ -47,12 +47,18 @@ combination is listed as verified.
 | Request-scoped activation patch | N/A | Implemented | Implemented | Not yet |
 | Batch safe-point breakpoint | N/A | Implemented | Implemented | Not yet |
 | Pre-projection head ablation | Yes | Implemented | Implemented | Not yet |
+| Linux hot attachment | N/A | Implemented | Implemented | Not applicable |
 | Visible unfused expert output | Implemented | Implemented | Implemented | Not yet |
 | Single-request scheduler suspension | N/A | Not yet | Not yet | Not yet |
 
 "Implemented" means the adapter and protocol path exist and have dependency-free
 contract tests. It does not mean every model architecture or kernel backend has
 passed a real GPU acceptance run.
+
+The shared-object injection mechanism has passed an isolated Linux acceptance test
+for already-running vLLM-shaped and SGLang-shaped CPython workers, including agent
+discovery and a live control-socket handshake. Real GPU server acceptance remains a
+separate required gate.
 
 "Experimental" means fixed-address graph control/trace slots and CPU contract tests
 exist, but the path has not passed real CUDA Graph replay acceptance. Enable it

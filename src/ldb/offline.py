@@ -8,7 +8,7 @@ from typing import Any
 
 from ldb.causal import CausalRuntime
 from ldb.interventions import apply_tensor_operation, load_intervention_tensor
-from ldb.models import HookPoint, Intervention, InterventionKind
+from ldb.models import HookPoint, Intervention, InterventionKind, TensorAxis
 from ldb.runtime import ProbeHandle
 from ldb.sae import SAEDictionary
 
@@ -32,7 +32,7 @@ def install_interventions(
             resource = _load_resource(intervention, resource_directory)
 
             def apply(
-                _: HookPoint,
+                selected_hook: HookPoint,
                 tensor: Any,
                 operation: InterventionKind = intervention.operation,
                 value: float | None = intervention.value,
@@ -52,6 +52,8 @@ def install_interventions(
                     num_heads=num_heads,
                     feature=loaded,
                     token=token,
+                    token_axis=selected_hook.axis(TensorAxis.TOKEN, TensorAxis.QUERY_TOKEN),
+                    head_axis=selected_hook.axis(TensorAxis.HEAD),
                 )
 
             handles.extend(runtime.install_intervention(hook, apply) for hook in matches)

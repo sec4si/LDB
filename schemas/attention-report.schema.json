@@ -1,0 +1,224 @@
+{
+  "$defs": {
+    "AttentionEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "key_token": {
+          "minimum": 0,
+          "title": "Key Token",
+          "type": "integer"
+        },
+        "query_token": {
+          "minimum": 0,
+          "title": "Query Token",
+          "type": "integer"
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "query_token",
+        "key_token",
+        "weight"
+      ],
+      "title": "AttentionEdge",
+      "type": "object"
+    },
+    "AttentionHead": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "minimum": 0,
+          "title": "Head",
+          "type": "integer"
+        },
+        "k_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K Norm"
+        },
+        "layer": {
+          "minimum": 0,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "maximum_attention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttentionEdge"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pattern_entropy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern Entropy"
+        },
+        "q_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Q Norm"
+        },
+        "result_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Norm"
+        },
+        "score_mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Mean"
+        },
+        "score_std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Std"
+        },
+        "v_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V Norm"
+        },
+        "z_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Z Norm"
+        }
+      },
+      "required": [
+        "layer",
+        "head"
+      ],
+      "title": "AttentionHead",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "heads": {
+      "items": {
+        "$ref": "#/$defs/AttentionHead"
+      },
+      "title": "Heads",
+      "type": "array"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.attention/v1alpha1",
+      "default": "ldb.attention/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "token_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Token Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "prompt",
+    "token_ids",
+    "heads"
+  ],
+  "title": "AttentionReport",
+  "type": "object"
+}

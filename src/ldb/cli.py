@@ -14,14 +14,17 @@ from rich.console import Console
 from rich.table import Table
 
 from ldb import __version__
+from ldb.attention import analyze_attention
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
 from ldb.compatibility import AUDITED_RUNTIME_VERSIONS
+from ldb.diagnosis import diagnose_failure
 from ldb.identity import resolve_tokenizer_identity
+from ldb.injector import inject_process
 from ldb.models import HookPoint, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.runtime import ProbeCallback
-from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features
+from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features, inspect_sae_tokens
 from ldb.search import (
     load_candidate_set,
     load_suite,
@@ -118,6 +121,40 @@ def runtimes() -> None:
             backend: sorted(versions)
             for backend, versions in sorted(AUDITED_RUNTIME_VERSIONS.items())
         }
+    )
+
+
+@app.command("hot-attach")
+def hot_attach(
+    pid: Annotated[int, typer.Argument(min=2, help="PID of a live serving worker")],
+    backend: Annotated[str, typer.Option("--backend", help="Serving backend: vllm or sglang")],
+    model_id: Annotated[str | None, typer.Option("--model-id")] = None,
+    model_revision: Annotated[str | None, typer.Option("--model-revision")] = None,
+    tokenizer_hash: Annotated[str | None, typer.Option("--tokenizer-hash")] = None,
+    instance_id: Annotated[str, typer.Option("--instance")] = "default",
+    socket_dir: Annotated[Path | None, typer.Option("--socket-dir")] = None,
+    output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
+    timeout: Annotated[float, typer.Option("--timeout", min=1.0)] = 30.0,
+) -> None:
+    """Inject LDB into an already-running Linux vLLM or SGLang worker."""
+
+    result = inject_process(
+        pid,
+        backend=backend,
+        model_id=model_id,
+        model_revision=model_revision,
+        tokenizer_hash=tokenizer_hash,
+        instance_id=instance_id,
+        socket_dir=socket_dir,
+        output_dir=output_dir,
+        timeout=timeout,
+    )
+    console.print_json(data=result)
+    agents = result.get("agents", [])
+    socket = str(agents[0]["socket_path"]) if agents else "AGENT_SOCKET"
+    console.print(
+        f"Hot attachment complete. Use [bold]ldb attach {shlex.quote(socket)}[/bold] "
+        "to inspect the runtime."
     )
 
 
@@ -237,6 +274,7 @@ def inspect_features(
     activation = load_file(bundle / tensor_file)["activation"]
     dictionary = SAEDictionary(dictionary_path)
     features = inspect_sae_features(activation, dictionary, top_k=top_k)
+    tokens = inspect_sae_tokens(activation, dictionary, top_k=top_k)
     report = FeatureReport(
         run_id=manifest.run_id,
         hook=hook,
@@ -245,22 +283,77 @@ def inspect_features(
         token_count=int(activation.numel() // dictionary.model_width),
         feature_count=dictionary.feature_count,
         features=features,
+        tokens=tokens,
     )
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
-    table = Table("Feature", "Peak", "Mean", "Active")
+    table = Table("Feature", "Peak", "Peak token", "Mean", "Active")
     for feature in features:
         table.add_row(
             str(feature.feature),
             f"{feature.peak:.6g}",
+            str(feature.peak_token),
             f"{feature.mean:.6g}",
             f"{feature.active_fraction:.1%}",
         )
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("attention")
+def inspect_attention(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    prompt: Annotated[str, typer.Option("--prompt")],
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
+) -> None:
+    """Inspect Q/K/V magnitude, patterns, and output magnitude for every head."""
+
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
+    report = analyze_attention(adapter, prompt=prompt)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    table = Table(
+        "Layer",
+        "Head",
+        "Q",
+        "K",
+        "V",
+        "Z",
+        "Result",
+        "Score mean",
+        "Score std",
+        "Entropy",
+        "Strongest",
+    )
+    for head in report.heads:
+        edge = head.maximum_attention
+        table.add_row(
+            str(head.layer),
+            str(head.head),
+            _optional_float(head.q_norm),
+            _optional_float(head.k_norm),
+            _optional_float(head.v_norm),
+            _optional_float(head.z_norm),
+            _optional_float(head.result_norm),
+            _optional_float(head.score_mean),
+            _optional_float(head.score_std),
+            _optional_float(head.pattern_entropy),
+            f"{edge.query_token}->{edge.key_token} ({edge.weight:.3g})" if edge else "-",
+        )
+    console.print(table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+
+
+def _optional_float(value: float | None) -> str:
+    return f"{value:.5g}" if value is not None else "-"
 
 
 @app.command()
@@ -270,6 +363,9 @@ def causal(
     corrupt_prompt: Annotated[str, typer.Option("--corrupt-prompt")],
     target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
     token_index: Annotated[int, typer.Option("--token", help="Activation token index")] = -1,
+    head_index: Annotated[
+        int | None, typer.Option("--head", min=0, help="Patch only one semantic attention head")
+    ] = None,
     hook: Annotated[
         list[str] | None,
         typer.Option("--hook", help="Glob selecting causal patch candidates"),
@@ -288,15 +384,17 @@ def causal(
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
         token_index=token_index,
+        head_index=head_index,
         hook_globs=hook or ["block.*.residual.post"],
     )
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    table = Table("Hook", "Patched log P", "Effect", "Recovery")
+    table = Table("Hook", "Head", "Patched log P", "Effect", "Recovery")
     for trial in report.trials:
         table.add_row(
             trial.hook,
+            str(trial.head) if trial.head is not None else "-",
             f"{trial.patched_log_probability:.6g}",
             f"{trial.effect:+.6g}",
             f"{trial.recovery:.2%}" if trial.recovery is not None else "-",
@@ -316,6 +414,9 @@ def ablate(
     prompt: Annotated[str, typer.Option("--prompt")],
     target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
     token_index: Annotated[int, typer.Option("--token", help="Activation token index")] = -1,
+    head_index: Annotated[
+        int | None, typer.Option("--head", min=0, help="Restrict a per-head hook to one head")
+    ] = None,
     hook: Annotated[
         list[str] | None,
         typer.Option("--hook", help="Glob selecting ablation candidates"),
@@ -334,14 +435,16 @@ def ablate(
         target_token_id=target_token_id,
         token_index=token_index,
         hook_globs=hook or ["block.*.residual.post"],
+        head_index=head_index,
     )
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    table = Table("Hook", "Ablated log P", "Effect")
+    table = Table("Hook", "Head", "Ablated log P", "Effect")
     for trial in report.trials:
         table.add_row(
             trial.hook,
+            str(trial.head) if trial.head is not None else "-",
             f"{trial.ablated_log_probability:.6g}",
             f"{trial.effect:+.6g}",
         )
@@ -398,6 +501,74 @@ def causal_graph(
     console.print(table)
     if output is not None:
         console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("diagnose")
+def diagnose(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    clean_prompt: Annotated[str, typer.Option("--clean-prompt")],
+    failing_prompt: Annotated[str, typer.Option("--failing-prompt")],
+    target_token_id: Annotated[int, typer.Option("--target-token-id", min=0)],
+    token_index: Annotated[int, typer.Option("--token")] = -1,
+    hook: Annotated[list[str] | None, typer.Option("--hook")] = None,
+    scale: Annotated[list[float] | None, typer.Option("--scale")] = None,
+    max_hooks: Annotated[int, typer.Option("--max-hooks", min=1)] = 8,
+    max_head_trials: Annotated[int, typer.Option("--max-head-trials", min=0)] = 32,
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    patch_output: Annotated[Path | None, typer.Option("--patch-output")] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
+) -> None:
+    """Automatically localize a failure and search a minimal activation patch."""
+
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
+    report = diagnose_failure(
+        adapter,
+        clean_prompt=clean_prompt,
+        failing_prompt=failing_prompt,
+        target_token_id=target_token_id,
+        token_index=token_index,
+        hook_globs=hook
+        or [
+            "block.*.residual.post",
+            "block.*.attention.z",
+            "block.*.mlp.output",
+        ],
+        scales=scale or [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5],
+        max_hooks=max_hooks,
+        max_head_trials=max_head_trials,
+    )
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if patch_output is not None:
+        if report.patch is None:
+            raise ValueError("Diagnosis found no patch that outperformed the no-op baseline")
+        write_patch(patch_output, report.patch)
+    console.print(report.conclusion)
+    table = Table("Hook", "Causal effect", "Recovery")
+    for trial in report.causal.trials[:max_hooks]:
+        table.add_row(
+            trial.hook,
+            f"{trial.effect:+.6g}",
+            f"{trial.recovery:+.2%}" if trial.recovery is not None else "-",
+        )
+    console.print(table)
+    if report.head_trials:
+        head_table = Table("Hook", "Head", "Causal effect", "Recovery")
+        for trial in report.head_trials:
+            head_table.add_row(
+                trial.hook,
+                str(trial.head),
+                f"{trial.effect:+.6g}",
+                f"{trial.recovery:+.2%}" if trial.recovery is not None else "-",
+            )
+        console.print(head_table)
+    if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+    if patch_output is not None:
+        console.print(f"Neural Patch: [bold]{patch_output}[/bold]")
 
 
 @app.command("search")

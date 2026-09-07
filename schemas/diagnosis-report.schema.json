@@ -1,0 +1,905 @@
+{
+  "$defs": {
+    "AttentionEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "key_token": {
+          "minimum": 0,
+          "title": "Key Token",
+          "type": "integer"
+        },
+        "query_token": {
+          "minimum": 0,
+          "title": "Query Token",
+          "type": "integer"
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "query_token",
+        "key_token",
+        "weight"
+      ],
+      "title": "AttentionEdge",
+      "type": "object"
+    },
+    "AttentionHead": {
+      "additionalProperties": false,
+      "properties": {
+        "head": {
+          "minimum": 0,
+          "title": "Head",
+          "type": "integer"
+        },
+        "k_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "K Norm"
+        },
+        "layer": {
+          "minimum": 0,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "maximum_attention": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttentionEdge"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pattern_entropy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern Entropy"
+        },
+        "q_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Q Norm"
+        },
+        "result_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Norm"
+        },
+        "score_mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Mean"
+        },
+        "score_std": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Std"
+        },
+        "v_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "V Norm"
+        },
+        "z_norm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Z Norm"
+        }
+      },
+      "required": [
+        "layer",
+        "head"
+      ],
+      "title": "AttentionHead",
+      "type": "object"
+    },
+    "AttentionReport": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "backend_version": {
+          "title": "Backend Version",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "heads": {
+          "items": {
+            "$ref": "#/$defs/AttentionHead"
+          },
+          "title": "Heads",
+          "type": "array"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Revision"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "ldb.attention/v1alpha1",
+          "default": "ldb.attention/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "token_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Token Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "backend",
+        "backend_version",
+        "prompt",
+        "token_ids",
+        "heads"
+      ],
+      "title": "AttentionReport",
+      "type": "object"
+    },
+    "CaseScore": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_log_probability": {
+          "title": "Baseline Log Probability",
+          "type": "number"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "title": "Category",
+          "type": "string"
+        },
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        },
+        "group": {
+          "enum": [
+            "target",
+            "related",
+            "regression"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "baseline_log_probability",
+        "patched_log_probability",
+        "delta"
+      ],
+      "title": "CaseScore",
+      "type": "object"
+    },
+    "CausalReport": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "backend_version": {
+          "title": "Backend Version",
+          "type": "string"
+        },
+        "clean_log_probability": {
+          "title": "Clean Log Probability",
+          "type": "number"
+        },
+        "clean_prompt": {
+          "title": "Clean Prompt",
+          "type": "string"
+        },
+        "corrupt_log_probability": {
+          "title": "Corrupt Log Probability",
+          "type": "number"
+        },
+        "corrupt_prompt": {
+          "title": "Corrupt Prompt",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "head_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head Index"
+        },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha2",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Revision"
+        },
+        "schema_version": {
+          "default": "ldb.causal/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "target_token_id": {
+          "minimum": 0,
+          "title": "Target Token Id",
+          "type": "integer"
+        },
+        "token_index": {
+          "default": -1,
+          "title": "Token Index",
+          "type": "integer"
+        },
+        "tokenizer_hash": {
+          "title": "Tokenizer Hash",
+          "type": "string"
+        },
+        "trials": {
+          "items": {
+            "$ref": "#/$defs/CausalTrial"
+          },
+          "title": "Trials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "backend",
+        "backend_version",
+        "tokenizer_hash",
+        "clean_prompt",
+        "corrupt_prompt",
+        "target_token_id",
+        "clean_log_probability",
+        "corrupt_log_probability",
+        "trials"
+      ],
+      "title": "CausalReport",
+      "type": "object"
+    },
+    "CausalTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "effect": {
+          "title": "Effect",
+          "type": "number"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "patched_log_probability": {
+          "title": "Patched Log Probability",
+          "type": "number"
+        },
+        "recovery": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recovery"
+        }
+      },
+      "required": [
+        "hook",
+        "patched_log_probability",
+        "effect"
+      ],
+      "title": "CausalTrial",
+      "type": "object"
+    },
+    "EvidenceLevel": {
+      "enum": [
+        "observed",
+        "correlated",
+        "attributed",
+        "causally_tested",
+        "replicated"
+      ],
+      "title": "EvidenceLevel",
+      "type": "string"
+    },
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "expert": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expert"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "num_heads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Heads"
+        },
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        },
+        "tensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "hook",
+        "operation"
+      ],
+      "title": "Intervention",
+      "type": "object"
+    },
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias",
+        "head_ablate",
+        "feature_scale"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    },
+    "NeuralPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceLevel",
+          "default": "observed"
+        },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha2",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/$defs/Intervention"
+          },
+          "minItems": 1,
+          "title": "Interventions",
+          "type": "array"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "title": "Model Revision",
+          "type": "string"
+        },
+        "patch_id": {
+          "title": "Patch Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "ldb.patch/v1alpha1",
+          "default": "ldb.patch/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tokenizer_hash": {
+          "title": "Tokenizer Hash",
+          "type": "string"
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValidationSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "patch_id",
+        "description",
+        "model_id",
+        "model_revision",
+        "tokenizer_hash",
+        "adapter",
+        "interventions"
+      ],
+      "title": "NeuralPatch",
+      "type": "object"
+    },
+    "SearchReport": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "backend_version": {
+          "title": "Backend Version",
+          "type": "string"
+        },
+        "complexity_weight": {
+          "title": "Complexity Weight",
+          "type": "number"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha2",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Revision"
+        },
+        "regression_weight": {
+          "title": "Regression Weight",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": "ldb.search/v1alpha1",
+          "default": "ldb.search/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tokenizer_hash": {
+          "title": "Tokenizer Hash",
+          "type": "string"
+        },
+        "trials": {
+          "items": {
+            "$ref": "#/$defs/SearchTrial"
+          },
+          "title": "Trials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "backend",
+        "backend_version",
+        "tokenizer_hash",
+        "regression_weight",
+        "complexity_weight",
+        "trials"
+      ],
+      "title": "SearchReport",
+      "type": "object"
+    },
+    "SearchTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/CaseScore"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "complexity": {
+          "title": "Complexity",
+          "type": "number"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "number"
+        },
+        "regression_loss": {
+          "title": "Regression Loss",
+          "type": "number"
+        },
+        "related_gain": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Gain"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "target_gain": {
+          "title": "Target Gain",
+          "type": "number"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        }
+      },
+      "required": [
+        "hook",
+        "scale",
+        "target_gain",
+        "regression_loss",
+        "complexity",
+        "objective",
+        "cases"
+      ],
+      "title": "SearchTrial",
+      "type": "object"
+    },
+    "ValidationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "related_generalization": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Generalization"
+        },
+        "target_success": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Target Success",
+          "type": "number"
+        },
+        "unrelated_regression": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unrelated Regression"
+        }
+      },
+      "required": [
+        "target_success"
+      ],
+      "title": "ValidationSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attention": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttentionReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "causal": {
+      "$ref": "#/$defs/CausalReport"
+    },
+    "conclusion": {
+      "title": "Conclusion",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "head_trials": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CausalTrial"
+      },
+      "title": "Head Trials",
+      "type": "array"
+    },
+    "patch": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NeuralPatch"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": "ldb.diagnosis/v1alpha1",
+      "default": "ldb.diagnosis/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "search": {
+      "$ref": "#/$defs/SearchReport"
+    },
+    "selected_hooks": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Selected Hooks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "causal",
+    "selected_hooks",
+    "search",
+    "conclusion"
+  ],
+  "title": "DiagnosisReport",
+  "type": "object"
+}

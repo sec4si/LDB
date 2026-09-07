@@ -10,7 +10,13 @@ from typing import Any, Literal, Protocol
 from pydantic import Field
 
 from ldb.interventions import apply_tensor_operation
-from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, HookPoint, InterventionKind
+from ldb.models import (
+    HOOK_SCHEMA_VERSION,
+    FrozenModel,
+    HookPoint,
+    InterventionKind,
+    TensorAxis,
+)
 from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
 
 
@@ -44,6 +50,7 @@ class CausalRuntime(Protocol):
 
 class CausalTrial(FrozenModel):
     hook: str
+    head: int | None = Field(default=None, ge=0)
     patched_log_probability: float
     effect: float
     recovery: float | None = None
@@ -62,6 +69,7 @@ class CausalReport(FrozenModel):
     corrupt_prompt: str
     target_token_id: int = Field(ge=0)
     token_index: int = -1
+    head_index: int | None = Field(default=None, ge=0)
     clean_log_probability: float
     corrupt_log_probability: float
     trials: tuple[CausalTrial, ...]
@@ -99,6 +107,7 @@ class CausalGraphReport(FrozenModel):
 
 class AblationTrial(FrozenModel):
     hook: str
+    head: int | None = Field(default=None, ge=0)
     ablated_log_probability: float
     effect: float
 
@@ -126,6 +135,7 @@ def causal_ablation(
     target_token_id: int,
     token_index: int = -1,
     hook_globs: Sequence[str] = ("block.*.residual.post",),
+    head_index: int | None = None,
 ) -> AblationReport:
     """Ablate one activation token at each selected hook and measure target impact."""
 
@@ -136,16 +146,31 @@ def causal_ablation(
     )
     if not hooks:
         raise ValueError("No hook points matched the requested patterns")
+    if head_index is not None:
+        hooks = tuple(hook for hook in hooks if hook.axis(TensorAxis.HEAD) is not None)
+        if not hooks:
+            raise ValueError("Head selection requires a hook with a semantic head axis")
 
     baseline = runtime.next_token_log_probability(prompt, target_token_id)
     trials: list[AblationTrial] = []
     for hook in hooks:
 
-        def ablate(_: HookPoint, tensor: Any) -> Any:
+        def ablate(selected_hook: HookPoint, tensor: Any) -> Any:
+            head_axis = selected_hook.axis(TensorAxis.HEAD)
+            if head_index is not None:
+                assert head_axis is not None
+                return _ablate_selection(
+                    tensor,
+                    token_index=token_index,
+                    token_axis=_token_axis(selected_hook, tensor),
+                    head_index=head_index,
+                    head_axis=head_axis,
+                )
             return apply_tensor_operation(
                 tensor,
                 InterventionKind.ABLATE,
                 token=token_index,
+                token_axis=_token_axis(selected_hook, tensor),
             )
 
         handle = runtime.install_intervention(hook, ablate)
@@ -156,6 +181,7 @@ def causal_ablation(
         trials.append(
             AblationTrial(
                 hook=hook.name,
+                head=head_index,
                 ablated_log_probability=score,
                 effect=score - baseline,
             )
@@ -183,6 +209,7 @@ def causal_trace(
     corrupt_prompt: str,
     target_token_id: int,
     token_index: int = -1,
+    head_index: int | None = None,
     hook_globs: Sequence[str] = ("block.*.residual.post",),
 ) -> CausalReport:
     """Patch clean activations into a corrupt run one hook at a time."""
@@ -194,12 +221,25 @@ def causal_trace(
     )
     if not hooks:
         raise ValueError("No hook points matched the requested patterns")
+    if head_index is not None:
+        hooks = tuple(hook for hook in hooks if hook.axis(TensorAxis.HEAD) is not None)
+        if not hooks:
+            raise ValueError("Head selection requires a hook with a semantic head axis")
 
     clean_activations: dict[str, Any] = {}
     handles: list[ProbeHandle] = []
 
     def capture(hook: HookPoint, tensor: Any) -> None:
-        clean_activations[hook.name] = _token_slice(tensor, token_index).detach().clone()
+        clean_activations[hook.name] = (
+            _activation_slice(
+                hook,
+                tensor,
+                token_index=token_index,
+                head_index=head_index,
+            )
+            .detach()
+            .clone()
+        )
 
     try:
         handles = [runtime.install_probe(hook, capture) for hook in hooks]
@@ -218,8 +258,14 @@ def causal_trace(
     for hook in hooks:
         clean_activation = clean_activations[hook.name]
 
-        def replace(_: HookPoint, tensor: Any, value: Any = clean_activation) -> Any:
-            return _replace_token(tensor, value, token_index)
+        def replace(selected_hook: HookPoint, tensor: Any, value: Any = clean_activation) -> Any:
+            return _replace_activation(
+                selected_hook,
+                tensor,
+                value,
+                token_index=token_index,
+                head_index=head_index,
+            )
 
         handle = runtime.install_intervention(hook, replace)
         try:
@@ -231,6 +277,7 @@ def causal_trace(
         trials.append(
             CausalTrial(
                 hook=hook.name,
+                head=head_index,
                 patched_log_probability=patched_score,
                 effect=effect,
                 recovery=recovery,
@@ -248,6 +295,7 @@ def causal_trace(
         corrupt_prompt=corrupt_prompt,
         target_token_id=target_token_id,
         token_index=token_index,
+        head_index=head_index,
         clean_log_probability=clean_score,
         corrupt_log_probability=corrupt_score,
         trials=tuple(trials),
@@ -295,8 +343,8 @@ def causal_propagation_graph(
     for source_index, source_name in enumerate(clean_order):
         source = hook_by_name[source_name]
 
-        def replace(_: HookPoint, tensor: Any, value: Any = clean[source_name]) -> Any:
-            return _replace_token(tensor, value, token_index)
+        def replace(selected_hook: HookPoint, tensor: Any, value: Any = clean[source_name]) -> Any:
+            return _replace_token(tensor, value, token_index, _token_axis(selected_hook, tensor))
 
         handle = runtime.install_intervention(source, replace)
         try:
@@ -321,29 +369,24 @@ def causal_propagation_graph(
                 clean[target_name], corrupt[target_name], patched[target_name]
             )
             if abs(recovery) >= minimum_recovery:
-                candidate_paths.append(
-                    (source_name, target_name, recovery, patched[target_name])
-                )
+                candidate_paths.append((source_name, target_name, recovery, patched[target_name]))
 
     candidate_paths.sort(key=lambda candidate: abs(candidate[2]), reverse=True)
     if len(candidate_paths) > max_path_trials:
         raise ValueError(
-            f"Causal graph produced {len(candidate_paths)} path trials; "
-            f"limit is {max_path_trials}"
+            f"Causal graph produced {len(candidate_paths)} path trials; limit is {max_path_trials}"
         )
 
     edges: list[CausalEdge] = []
     for source_name, target_name, activation_recovery, mediated_activation in candidate_paths:
         target = hook_by_name[target_name]
 
-        def mediate(_: HookPoint, tensor: Any, value: Any = mediated_activation) -> Any:
-            return _replace_token(tensor, value, token_index)
+        def mediate(selected_hook: HookPoint, tensor: Any, value: Any = mediated_activation) -> Any:
+            return _replace_token(tensor, value, token_index, _token_axis(selected_hook, tensor))
 
         handle = runtime.install_intervention(target, mediate)
         try:
-            mediated_score = runtime.next_token_log_probability(
-                corrupt_prompt, target_token_id
-            )
+            mediated_score = runtime.next_token_log_probability(corrupt_prompt, target_token_id)
         finally:
             handle.remove()
         effect = mediated_score - corrupt_score
@@ -392,7 +435,9 @@ def _capture_run(
     def capture(hook: HookPoint, tensor: Any) -> None:
         if hook.name not in activations:
             order.append(hook.name)
-        activations[hook.name] = _token_slice(tensor, token_index).detach().clone()
+        activations[hook.name] = (
+            _token_slice(tensor, token_index, _token_axis(hook, tensor)).detach().clone()
+        )
 
     handles = [runtime.install_probe(hook, capture) for hook in hooks]
     try:
@@ -414,10 +459,20 @@ def _activation_recovery(clean: Any, corrupt: Any, patched: Any) -> float:
     return float(1.0 - remaining / baseline)
 
 
-def _token_slice(tensor: Any, token_index: int) -> Any:
+def _token_axis(hook: HookPoint, tensor: Any) -> int:
+    explicit = hook.axis(TensorAxis.TOKEN, TensorAxis.QUERY_TOKEN)
+    if explicit is not None:
+        if explicit >= tensor.ndim:
+            raise ValueError(f"Hook {hook.name} declares an invalid token axis")
+        return explicit
+    return tensor.ndim - 2 if tensor.ndim >= 3 else 0
+
+
+def _token_slice(tensor: Any, token_index: int, axis: int | None = None) -> Any:
     if tensor.ndim == 0:
         raise ValueError("Token selection requires a tensor with at least one dimension")
-    axis = tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    axis = axis if axis is not None else tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    axis %= tensor.ndim
     size = tensor.shape[axis]
     index = token_index if token_index >= 0 else size + token_index
     if index < 0 or index >= size:
@@ -427,19 +482,98 @@ def _token_slice(tensor: Any, token_index: int) -> Any:
     return tensor[tuple(selector)]
 
 
-def _replace_token(tensor: Any, replacement: Any, token_index: int) -> Any:
-    selected = _token_slice(tensor, token_index)
+def _replace_token(tensor: Any, replacement: Any, token_index: int, axis: int | None = None) -> Any:
+    selected = _token_slice(tensor, token_index, axis)
     value = replacement.to(device=selected.device, dtype=selected.dtype)
     if value.shape != selected.shape:
         raise ValueError(
             f"Clean token activation shape {tuple(value.shape)} does not match "
             f"corrupt token activation shape {tuple(selected.shape)}"
         )
-    axis = tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    axis = axis if axis is not None else tensor.ndim - 2 if tensor.ndim >= 3 else 0
+    axis %= tensor.ndim
     size = tensor.shape[axis]
     index = token_index if token_index >= 0 else size + token_index
     selector: list[Any] = [slice(None)] * tensor.ndim
     selector[axis] = index
+    modified = tensor.clone()
+    modified[tuple(selector)] = value
+    return modified
+
+
+def _ablate_selection(
+    tensor: Any,
+    *,
+    token_index: int,
+    token_axis: int,
+    head_index: int,
+    head_axis: int,
+) -> Any:
+    token_size = tensor.shape[token_axis]
+    token = token_index if token_index >= 0 else token_size + token_index
+    if token < 0 or token >= token_size:
+        raise ValueError(f"Token {token_index} is outside token dimension of size {token_size}")
+    head_size = tensor.shape[head_axis]
+    if head_index < 0 or head_index >= head_size:
+        raise ValueError(f"Head {head_index} is outside head dimension of size {head_size}")
+    selector: list[Any] = [slice(None)] * tensor.ndim
+    selector[token_axis] = token
+    selector[head_axis] = head_index
+    modified = tensor.clone()
+    modified[tuple(selector)] = 0
+    return modified
+
+
+def _activation_slice(
+    hook: HookPoint,
+    tensor: Any,
+    *,
+    token_index: int,
+    head_index: int | None,
+) -> Any:
+    token_axis = _token_axis(hook, tensor)
+    token_size = tensor.shape[token_axis]
+    token = token_index if token_index >= 0 else token_size + token_index
+    if token < 0 or token >= token_size:
+        raise ValueError(f"Token {token_index} is outside token dimension of size {token_size}")
+    selector: list[Any] = [slice(None)] * tensor.ndim
+    selector[token_axis] = token
+    if head_index is not None:
+        head_axis = hook.axis(TensorAxis.HEAD)
+        if head_axis is None:
+            raise ValueError(f"Hook {hook.name} has no semantic head axis")
+        if head_index >= tensor.shape[head_axis]:
+            raise ValueError(
+                f"Head {head_index} is outside head dimension of size {tensor.shape[head_axis]}"
+            )
+        selector[head_axis] = head_index
+    return tensor[tuple(selector)]
+
+
+def _replace_activation(
+    hook: HookPoint,
+    tensor: Any,
+    replacement: Any,
+    *,
+    token_index: int,
+    head_index: int | None,
+) -> Any:
+    selected = _activation_slice(hook, tensor, token_index=token_index, head_index=head_index)
+    value = replacement.to(device=selected.device, dtype=selected.dtype)
+    if value.shape != selected.shape:
+        raise ValueError(
+            f"Clean activation shape {tuple(value.shape)} does not match "
+            f"corrupt activation shape {tuple(selected.shape)}"
+        )
+    token_axis = _token_axis(hook, tensor)
+    token_size = tensor.shape[token_axis]
+    token = token_index if token_index >= 0 else token_size + token_index
+    selector: list[Any] = [slice(None)] * tensor.ndim
+    selector[token_axis] = token
+    if head_index is not None:
+        head_axis = hook.axis(TensorAxis.HEAD)
+        assert head_axis is not None
+        selector[head_axis] = head_index
     modified = tensor.clone()
     modified[tuple(selector)] = value
     return modified

@@ -15,12 +15,23 @@ from ldb.models import FrozenModel
 class FeatureActivation(FrozenModel):
     feature: int = Field(ge=0)
     peak: float
+    peak_token: int = Field(ge=0)
     mean: float
     active_fraction: float = Field(ge=0.0, le=1.0)
 
 
+class TokenFeatureActivation(FrozenModel):
+    feature: int = Field(ge=0)
+    value: float
+
+
+class TokenFeatureReport(FrozenModel):
+    token: int = Field(ge=0)
+    features: tuple[TokenFeatureActivation, ...]
+
+
 class FeatureReport(FrozenModel):
-    schema_version: Literal["ldb.features/v1alpha1"] = "ldb.features/v1alpha1"
+    schema_version: Literal["ldb.features/v1alpha2"] = "ldb.features/v1alpha2"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     run_id: str
     hook: str
@@ -29,6 +40,7 @@ class FeatureReport(FrozenModel):
     token_count: int = Field(ge=0)
     feature_count: int = Field(gt=0)
     features: tuple[FeatureActivation, ...]
+    tokens: tuple[TokenFeatureReport, ...] = ()
 
 
 class SAEDictionary:
@@ -146,11 +158,39 @@ def inspect_sae_features(
         FeatureActivation(
             feature=int(index),
             peak=float(peaks[index].item()),
+            peak_token=int(encoded[:, index].argmax().item()),
             mean=float(means[index].item()),
             active_fraction=float(active[index].item()),
         )
         for index in indices
     )
+
+
+def inspect_sae_tokens(
+    activation: Any,
+    dictionary: SAEDictionary,
+    *,
+    top_k: int,
+) -> tuple[TokenFeatureReport, ...]:
+    """Return each flattened token's strongest SAE features."""
+
+    if top_k <= 0:
+        raise ValueError("top_k must be positive")
+    encoded = dictionary.encode(activation)
+    count = min(top_k, dictionary.feature_count)
+    reports = []
+    for token, row in enumerate(encoded):
+        indices = row.topk(count).indices.tolist()
+        reports.append(
+            TokenFeatureReport(
+                token=token,
+                features=tuple(
+                    TokenFeatureActivation(feature=int(index), value=float(row[index].item()))
+                    for index in indices
+                ),
+            )
+        )
+    return tuple(reports)
 
 
 def _sha256_file(path: Path) -> str:

@@ -34,6 +34,13 @@ class FakeBridge:
         names = (
             "blocks.0.hook_in",
             "blocks.0.hook_resid_mid",
+            "blocks.0.attn.hook_q",
+            "blocks.0.attn.hook_k",
+            "blocks.0.attn.hook_v",
+            "blocks.0.attn.hook_attn_scores",
+            "blocks.0.attn.hook_pattern",
+            "blocks.0.attn.hook_z",
+            "blocks.0.attn.hook_result",
             "blocks.0.mlp.hook_in",
             "blocks.0.mlp.hook_pre",
             "blocks.0.mlp.hook_post",
@@ -46,11 +53,15 @@ class FakeBridge:
             config=SimpleNamespace(_commit_hash="commit", is_encoder_decoder=False)
         )
         self.adapter = SimpleNamespace(supports_generation=True)
+        self.cfg = SimpleNamespace(use_attn_result=False)
         self.tokenizer = SimpleNamespace(
             backend_tokenizer=FakeBackendTokenizer(),
             special_tokens_map={"eos_token": "<eos>"},
             chat_template=None,
         )
+
+    def set_use_attn_result(self, enabled: bool) -> None:
+        self.cfg.use_attn_result = enabled
 
     def to_tokens(self, text: str, **_: Any) -> torch.Tensor:
         values = {
@@ -84,12 +95,30 @@ def test_transformer_lens_adapter_discovers_normalized_hooks() -> None:
     assert [hook.name for hook in adapter.hook_points()] == [
         "block.0.residual.pre",
         "block.0.residual.mid",
+        "block.0.attention.q",
+        "block.0.attention.k",
+        "block.0.attention.v",
+        "block.0.attention.scores",
+        "block.0.attention.pattern",
+        "block.0.attention.z",
+        "block.0.attention.result",
         "block.0.attention.output",
         "block.0.mlp.input",
         "block.0.mlp.pre",
         "block.0.mlp.activation",
         "block.0.mlp.output",
         "block.0.residual.post",
+    ]
+    q = next(hook for hook in adapter.hook_points() if hook.name.endswith("attention.q"))
+    pattern = next(
+        hook for hook in adapter.hook_points() if hook.name.endswith("attention.pattern")
+    )
+    assert [axis.value for axis in q.axes] == ["batch", "token", "head", "channel"]
+    assert [axis.value for axis in pattern.axes] == [
+        "batch",
+        "head",
+        "query_token",
+        "key_token",
     ]
     assert adapter.backend == "transformerlens"
     assert adapter.backend_version == "3.8.1"
@@ -135,3 +164,14 @@ def test_transformer_lens_adapter_rejects_encoder_decoder_models() -> None:
             _bridge=bridge,
             _backend_version="3.8.1",
         )
+
+
+def test_transformer_lens_adapter_enables_result_only_while_hooked() -> None:
+    adapter = _adapter()
+    hook = next(hook for hook in adapter.hook_points() if hook.name.endswith("attention.result"))
+
+    handle = adapter.install_probe(hook, lambda *_: None)
+    assert adapter.model.cfg.use_attn_result is True
+
+    handle.remove()
+    assert adapter.model.cfg.use_attn_result is False
