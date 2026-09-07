@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import functools
 import importlib
 import os
 from typing import Any
 
+from ldb.compatibility import require_audited_runtime
 from ldb.context import context_from_sglang, reset_batch_context, set_batch_context
 from ldb.hooks import _package_version, install_model_runtime
 
@@ -16,6 +18,8 @@ def register_plugin() -> None:
     if os.environ.get("LDB_ENABLE") != "1":
         return
 
+    backend_version = _package_version("sglang")
+    require_audited_runtime("sglang", backend_version)
     registry = importlib.import_module("sglang.srt.plugins.hook_registry")
     worker_module = importlib.import_module("sglang.srt.managers.tp_worker")
     runner_module = importlib.import_module("sglang.srt.model_executor.model_runner")
@@ -26,7 +30,7 @@ def register_plugin() -> None:
 
     registry.HookRegistry.register(
         "sglang.srt.managers.tp_worker.TpModelWorker.__init__",
-        _after_worker_init,
+        functools.partial(_after_worker_init, backend_version=backend_version),
         registry.HookType.AFTER,
     )
     registry.HookRegistry.register(
@@ -36,7 +40,13 @@ def register_plugin() -> None:
     )
 
 
-def _after_worker_init(result: Any, worker: Any, *_: Any, **__: Any) -> Any:
+def _after_worker_init(
+    result: Any,
+    worker: Any,
+    *_: Any,
+    backend_version: str,
+    **__: Any,
+) -> Any:
     runner = worker.model_runner
     model = runner.model
     server_args = runner.server_args
@@ -52,7 +62,7 @@ def _after_worker_init(result: Any, worker: Any, *_: Any, **__: Any) -> Any:
     install_model_runtime(
         model,
         backend="sglang",
-        backend_version=_package_version("sglang"),
+        backend_version=backend_version,
         model_id=model_id,
         config={
             "request_context": True,

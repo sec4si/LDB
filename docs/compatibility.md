@@ -10,6 +10,11 @@ without authoritative batch context. This explicit check is necessary for SGLang
 because its hook registry logs target-resolution failures instead of propagating
 them to the plugin loader.
 
+Plugins also reject runtime package versions outside the audited stable rows below.
+For deliberate adapter development against a new version, set
+`LDB_ALLOW_UNVERIFIED_RUNTIME=1`; this bypasses only the version gate, not structural
+boundary checks, and does not make that version supported or GPU verified.
+
 ## Source-audited snapshots
 
 The following boundaries were checked against upstream source on 2026-09-07.

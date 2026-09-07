@@ -87,6 +87,9 @@ written only for hook names matched by `--capture`.
 
 Install LDB in the same Python environment as the serving runtime. Runtime plugins
 remain dormant unless `LDB_ENABLE=1` is set explicitly.
+The current source-audited adapters accept vLLM `0.28.0` and SGLang `0.5.19`.
+Other versions fail closed unless an operator deliberately sets
+`LDB_ALLOW_UNVERIFIED_RUNTIME=1` for compatibility development.
 
 Resolve the immutable model revision and canonical tokenizer hash without loading
 model weights:

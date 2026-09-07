@@ -1,14 +1,30 @@
 from types import SimpleNamespace
 
+import pytest
+
 import ldb.adapters.sglang as sglang_adapter
 import ldb.adapters.vllm as vllm_adapter
 from ldb.context import current_batch_context
+
+
+@pytest.fixture(autouse=True)
+def audited_runtime_versions(monkeypatch) -> None:
+    monkeypatch.setattr(sglang_adapter, "_package_version", lambda _: "0.5.19")
+    monkeypatch.setattr(vllm_adapter, "_package_version", lambda _: "0.28.0")
 
 
 def test_runtime_plugins_are_dormant_without_explicit_enable(monkeypatch) -> None:
     monkeypatch.delenv("LDB_ENABLE", raising=False)
     sglang_adapter.register_plugin()
     vllm_adapter.register_plugin()
+
+
+def test_runtime_plugin_rejects_unaudited_version(monkeypatch) -> None:
+    monkeypatch.setenv("LDB_ENABLE", "1")
+    monkeypatch.setattr(vllm_adapter, "_package_version", lambda _: "99.0.0")
+
+    with pytest.raises(RuntimeError, match="has not audited vllm '99.0.0'"):
+        vllm_adapter.register_plugin()
 
 
 def test_sglang_plugin_registers_worker_initialization_hook(monkeypatch) -> None:

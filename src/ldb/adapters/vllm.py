@@ -7,6 +7,7 @@ import importlib
 import os
 from typing import Any
 
+from ldb.compatibility import require_audited_runtime
 from ldb.context import context_from_vllm, reset_batch_context, set_batch_context
 from ldb.hooks import _package_version, install_model_runtime
 
@@ -17,6 +18,8 @@ def register_plugin() -> None:
     if os.environ.get("LDB_ENABLE") != "1":
         return
 
+    backend_version = _package_version("vllm")
+    require_audited_runtime("vllm", backend_version)
     worker_module = importlib.import_module("vllm.v1.worker.gpu_worker")
     worker_class = worker_module.Worker
 
@@ -56,7 +59,7 @@ def register_plugin() -> None:
         install_model_runtime(
             model,
             backend="vllm",
-            backend_version=_package_version("vllm"),
+            backend_version=backend_version,
             model_id=str(model_config.model),
             config={
                 "request_context": True,

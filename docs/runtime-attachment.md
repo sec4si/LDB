@@ -164,6 +164,10 @@ context provider and resolves spans only after vLLM has finalized its internal
 `InputBatch` order. Both paths enable request-filtered traces and request-scoped
 activation patches without changing other rows in a continuous batch.
 
+Serving plugins start only on source-audited runtime package versions listed in the
+compatibility matrix. `LDB_ALLOW_UNVERIFIED_RUNTIME=1` is an explicit development
+override and must not be interpreted as compatibility evidence.
+
 The control socket is created only after model topology discovery and normalized
 hook installation complete. A process-local agent cannot be reused with a different
 backend version, model identity, distributed world size, request-context contract,
