@@ -42,6 +42,7 @@ def main() -> None:
         environment.update(
             {
                 "LDB_ENABLE": "1",
+                "LDB_INSTANCE_ID": "gpu-smoke",
                 "LDB_SOCKET_DIR": str(agents),
                 "LDB_OUTPUT_DIR": str(runs),
             }

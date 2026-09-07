@@ -101,7 +101,7 @@ Use the returned `model_revision` and `tokenizer_hash` values for
 SGLang:
 
 ```console
-LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
+LDB_ENABLE=1 SGLANG_PLUGINS=ldb LDB_INSTANCE_ID=production-a \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   sglang serve --model-path <model> --disable-cuda-graph
@@ -110,7 +110,7 @@ LDB_ENABLE=1 SGLANG_PLUGINS=ldb \
 vLLM:
 
 ```console
-LDB_ENABLE=1 VLLM_PLUGINS=ldb \
+LDB_ENABLE=1 VLLM_PLUGINS=ldb LDB_INSTANCE_ID=production-a \
   LDB_MODEL_REVISION=<immutable-model-revision> \
   LDB_TOKENIZER_HASH=<ldb-tokenizer-hash> \
   vllm serve <model> --enforce-eager
@@ -124,7 +124,7 @@ eager mode.
 Attach from another terminal:
 
 ```console
-ldb attach /tmp/ldb-$(id -u)/agents
+ldb attach /tmp/ldb-$(id -u)/agents --instance production-a
 
 (ldb) arm 'block.10.*'
 (ldb) hooks 'block.10.*'

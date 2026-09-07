@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import os
+import re
 import socketserver
 import stat
 import threading
@@ -12,6 +13,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -76,6 +78,7 @@ class AgentRuntime:
         *,
         backend: str,
         backend_version: str,
+        instance_id: str = "default",
         model_id: str,
         model_revision: str | None = None,
         tokenizer_hash: str | None = None,
@@ -90,8 +93,12 @@ class AgentRuntime:
     ) -> None:
         if rank < 0 or world_size <= rank:
             raise ValueError("rank must be within world_size")
+        valid_instance = re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", instance_id)
+        if len(instance_id) > 128 or valid_instance is None:
+            raise ValueError("instance_id must be a valid runtime instance label")
         self.backend = backend
         self.backend_version = backend_version
+        self.instance_id = instance_id
         self.model_id = model_id
         self.model_revision = model_revision
         self.tokenizer_hash = tokenizer_hash
@@ -122,9 +129,11 @@ class AgentRuntime:
         self._handles: list[Any] = []
         self._hook_names: set[str] = set()
         self._run_id = uuid.uuid4().hex
+        self._started_at = datetime.now(UTC)
 
         backend_id = hashlib.sha256(backend.encode()).hexdigest()[:8]
-        identity = f"worker-{os.getpid()}-r{rank}-{backend_id}"
+        instance_key = hashlib.sha256(instance_id.encode()).hexdigest()[:8]
+        identity = f"worker-{os.getpid()}-r{rank}-{backend_id}-{instance_key}"
         self.socket_path = _socket_path(socket_dir, identity)
         self.descriptor_path = socket_dir / f"{identity}.json"
         self.tensor_dir = output_dir / self._run_id / identity / "tensors"
@@ -150,6 +159,7 @@ class AgentRuntime:
         return AgentDescriptor(
             backend=self.backend,
             backend_version=self.backend_version,
+            instance_id=self.instance_id,
             model_id=self.model_id,
             model_revision=self.model_revision,
             tokenizer_hash=self.tokenizer_hash,
@@ -158,6 +168,7 @@ class AgentRuntime:
             world_size=self.world_size,
             topology=self.topology,
             socket_path=str(self.socket_path),
+            started_at=self._started_at,
             capabilities=tuple(capabilities),
         )
 

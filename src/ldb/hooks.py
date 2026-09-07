@@ -10,7 +10,7 @@ from typing import Any
 
 from ldb.agent import AgentRuntime
 
-_AGENTS: dict[tuple[str, int], AgentRuntime] = {}
+_AGENTS: dict[tuple[str, str, int], AgentRuntime] = {}
 
 
 def _environment_int(name: str, default: int) -> int:
@@ -40,6 +40,7 @@ def get_or_create_agent(
     world_size = int(values.get("world_size", _environment_int("WORLD_SIZE", 1)))
     model_revision = _configured_string(values, "model_revision", "LDB_MODEL_REVISION")
     tokenizer_hash = _configured_string(values, "tokenizer_hash", "LDB_TOKENIZER_HASH")
+    instance_id = _configured_string(values, "instance_id", "LDB_INSTANCE_ID") or "default"
     request_context = bool(values.get("request_context", False))
     topology = dict(values.get("topology", {}))
     graph_control = bool(values.get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1"))
@@ -50,11 +51,12 @@ def get_or_create_agent(
     output_dir = Path(
         str(values.get("output_dir", os.environ.get("LDB_OUTPUT_DIR", f"{default_root}/runs")))
     )
-    key = (backend, rank)
+    key = (backend, instance_id, rank)
     agent = _AGENTS.get(key)
     if agent is not None:
         _validate_existing_agent(
             agent,
+            instance_id=instance_id,
             backend_version=backend_version,
             model_id=model_id,
             model_revision=model_revision,
@@ -71,6 +73,7 @@ def get_or_create_agent(
     agent = AgentRuntime(
         backend=backend,
         backend_version=backend_version,
+        instance_id=instance_id,
         model_id=model_id,
         model_revision=model_revision,
         tokenizer_hash=tokenizer_hash,
@@ -194,6 +197,7 @@ def close_agents() -> None:
 def _validate_existing_agent(
     agent: AgentRuntime,
     *,
+    instance_id: str,
     backend_version: str,
     model_id: str,
     model_revision: str | None,
@@ -206,6 +210,7 @@ def _validate_existing_agent(
     output_dir: Path,
 ) -> None:
     expected = {
+        "instance_id": instance_id,
         "backend_version": backend_version,
         "model_id": model_id,
         "model_revision": model_revision,

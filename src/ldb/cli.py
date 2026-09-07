@@ -772,10 +772,14 @@ def attach(
         str | None,
         typer.Option("--execute", "-e", help="Execute one debugger command and exit"),
     ] = None,
+    instance: Annotated[
+        str | None,
+        typer.Option("--instance", help="Select one runtime instance from a shared directory"),
+    ] = None,
 ) -> None:
     """Attach to one or more live LDB runtime agents."""
 
-    client = AgentGroupClient.connect(target)
+    client = AgentGroupClient.connect(target, instance_id=instance)
     hello = client.call("hello")
     console.print_json(data=hello)
     if execute is not None:

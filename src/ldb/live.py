@@ -32,6 +32,12 @@ class AgentDescriptor(FrozenModel):
     hook_schema_version: str = HOOK_SCHEMA_VERSION
     backend: str
     backend_version: str
+    instance_id: str = Field(
+        default="default",
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+    )
     model_id: str
     model_revision: str | None = None
     tokenizer_hash: str | None = None

@@ -195,6 +195,29 @@ def test_process_agent_reuse_requires_consistent_identity(tmp_path: Path) -> Non
         close_agents()
 
 
+def test_process_agents_are_isolated_by_instance(tmp_path: Path) -> None:
+    agents = tuple(
+        install_model_runtime(
+            Model(),
+            backend="test-agent-instance",
+            backend_version="1",
+            model_id="test-model",
+            config={
+                "instance_id": instance_id,
+                "socket_dir": tmp_path / "agents",
+                "output_dir": tmp_path / "runs",
+            },
+        )
+        for instance_id in ("blue", "green")
+    )
+    try:
+        assert agents[0] is not agents[1]
+        assert agents[0].socket_path != agents[1].socket_path
+        assert {agent.descriptor.instance_id for agent in agents} == {"blue", "green"}
+    finally:
+        close_agents()
+
+
 def test_installed_runtime_prepares_graph_control_slots(tmp_path: Path) -> None:
     model = Model()
     agent = install_model_runtime(

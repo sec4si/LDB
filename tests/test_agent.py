@@ -97,6 +97,61 @@ def test_agent_group_discovers_descriptors(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_agent_group_selects_one_runtime_instance(tmp_path: Path) -> None:
+    agents = tuple(
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            instance_id=instance_id,
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+        ).start()
+        for instance_id in ("blue", "green")
+    )
+    try:
+        assert agents[0].socket_path != agents[1].socket_path
+        with pytest.raises(ValueError, match="multiple runtime instances"):
+            AgentGroupClient.connect(tmp_path / "agents")
+
+        group = AgentGroupClient.connect(tmp_path / "agents", instance_id="blue")
+        statuses = group.call("status")
+        assert len(statuses) == 1
+        assert statuses[0]["descriptor"]["instance_id"] == "blue"
+    finally:
+        for agent in agents:
+            agent.close()
+
+
+def test_agent_socket_rejects_wrong_runtime_instance(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        instance_id="blue",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    try:
+        with pytest.raises(ValueError, match="not 'green'"):
+            AgentGroupClient.connect(agent.socket_path, instance_id="green")
+    finally:
+        agent.close()
+
+
+def test_agent_rejects_invalid_runtime_instance_before_start(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="valid runtime instance label"):
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            instance_id="invalid instance",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+        )
+    assert not (tmp_path / "agents").exists()
+
+
 def test_agent_group_requires_every_distributed_rank(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",

@@ -27,7 +27,10 @@ model runner
 
 Every tensor-parallel or pipeline-parallel worker publishes a descriptor in the
 agent directory. `ldb attach <directory>` discovers the live sockets and broadcasts
-commands to every rank.
+commands to every rank. When multiple serving runtimes share the same Unix user and
+agent directory, give each server a stable `LDB_INSTANCE_ID` and select it with
+`ldb attach <directory> --instance <id>`. LDB refuses an ambiguous directory instead
+of risking a command against the wrong model server.
 
 ## Protocol
 
@@ -103,6 +106,9 @@ therefore single-host in v0.1; a distributed deployment spanning hosts must expo
 all workers through a deliberately colocated control plane before group attachment
 is safe. All ranks must also advertise the same capability set and TP/PP/DP sizes,
 whose product must equal `world_size` when topology metadata is available.
+Instance IDs contain only letters, digits, dots, underscores, and hyphens, begin
+with a letter or digit, and are limited to 128 characters. They are routing labels,
+not authentication secrets.
 
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control

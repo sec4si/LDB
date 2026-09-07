@@ -47,9 +47,16 @@ class AgentGroupClient:
         self.clients = clients
 
     @classmethod
-    def connect(cls, target: Path) -> AgentGroupClient:
+    def connect(cls, target: Path, *, instance_id: str | None = None) -> AgentGroupClient:
         if target.is_socket():
-            return cls((AgentClient(target),))
+            client = AgentClient(target)
+            if instance_id is not None:
+                descriptor = AgentDescriptor.model_validate(client.call("hello"))
+                if descriptor.instance_id != instance_id:
+                    raise ValueError(
+                        f"Agent instance is {descriptor.instance_id!r}, not {instance_id!r}"
+                    )
+            return cls((client,))
         if not target.is_dir():
             raise ValueError(f"Agent target is not a socket or directory: {target}")
 
@@ -59,6 +66,8 @@ class AgentGroupClient:
                 advertised = AgentDescriptor.model_validate_json(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            if instance_id is not None and advertised.instance_id != instance_id:
+                continue
             socket_path = Path(advertised.socket_path)
             if not socket_path.is_socket():
                 continue
@@ -67,11 +76,18 @@ class AgentGroupClient:
                 descriptor = AgentDescriptor.model_validate(client.call("hello"))
             except Exception as exc:
                 raise RuntimeError(f"Agent handshake failed for {socket_path}: {exc}") from exc
-            if descriptor.socket_path != advertised.socket_path:
-                raise RuntimeError(f"Agent descriptor does not match its live socket: {path}")
+            if descriptor != advertised:
+                raise RuntimeError(f"Agent descriptor does not match its live runtime: {path}")
             connected.append((descriptor, client))
         if not connected:
-            raise ValueError(f"No live LDB agents found in {target}")
+            suffix = f" for instance {instance_id!r}" if instance_id is not None else ""
+            raise ValueError(f"No live LDB agents found{suffix} in {target}")
+        instances = {descriptor.instance_id for descriptor, _ in connected}
+        if instance_id is None and len(instances) > 1:
+            raise ValueError(
+                "Agent directory contains multiple runtime instances; "
+                "select one with --instance"
+            )
         _validate_agent_group(tuple(descriptor for descriptor, _ in connected))
         connected.sort(key=lambda item: item[0].rank)
         return cls(tuple(client for _, client in connected))
@@ -189,6 +205,7 @@ def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
         "hook_schema_version",
         "backend",
         "backend_version",
+        "instance_id",
         "model_id",
         "model_revision",
         "tokenizer_hash",

@@ -28,6 +28,38 @@ def test_attach_executes_command_against_live_agent(tmp_path: Path) -> None:
         agent.close()
 
 
+def test_attach_selects_runtime_instance(tmp_path: Path) -> None:
+    agents = tuple(
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            instance_id=instance_id,
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+        ).start()
+        for instance_id in ("blue", "green")
+    )
+    try:
+        result = runner.invoke(
+            app,
+            [
+                "attach",
+                str(tmp_path / "agents"),
+                "--instance",
+                "green",
+                "-e",
+                "status",
+            ],
+        )
+        assert result.exit_code == 0
+        assert '"instance_id": "green"' in result.stdout
+        assert '"instance_id": "blue"' not in result.stdout
+    finally:
+        for agent in agents:
+            agent.close()
+
+
 def test_attach_lists_registered_hooks(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",
