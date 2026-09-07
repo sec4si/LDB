@@ -12,14 +12,19 @@ them to the plugin loader.
 
 ## Source-audited snapshots
 
-| Runtime | Upstream commit | Required boundaries |
+The following boundaries were checked against upstream source on 2026-09-07.
+
+| Runtime snapshot | Upstream commit | Required boundaries |
 |---|---|---|
+| SGLang v0.5.19 | `0bcd822377da7b5718e674eaf9c870d349424dd1` | `sglang.srt.plugins`, `TpModelWorker.__init__`, `ModelRunner.forward`, `ForwardBatch.rids`, `ForwardBatch.extend_seq_lens_cpu` |
 | SGLang | `2e8c03e2c71732b98ac29882ca1ee88bfa3fb1de` | `sglang.srt.plugins`, `TpModelWorker.__init__`, `ModelRunner.forward`, `ForwardBatch.rids`, `ForwardBatch.extend_seq_lens_cpu` |
+| vLLM v0.28.0 | `2cf0a6915ce544dc493a0990f2ea38d81601128a` | `vllm.general_plugins`, V1 `Worker.load_model`, both V1/V2 `GPUModelRunner.execute_model` paths, `InputBatch.req_ids`, `SchedulerOutput.num_scheduled_tokens` |
 | vLLM | `6865e67f0be02d53694517f6f71d7fb96492792d` | `vllm.general_plugins`, V1 `Worker.load_model`, `GPUModelRunner.execute_model`, `InputBatch.req_ids`, `SchedulerOutput.num_scheduled_tokens` |
 
-These snapshots are source audits, not GPU integration-test claims. GPU acceptance
-must cover each supported runtime release, model family, execution mode, and
-parallel topology before that combination is listed as verified.
+The unversioned rows are upstream `main` snapshots. These are source audits, not
+GPU integration-test claims. GPU acceptance must cover each supported runtime
+release, model family, execution mode, and parallel topology before that
+combination is listed as verified.
 
 ## Runtime matrix
 

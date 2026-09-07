@@ -25,6 +25,15 @@ The `GPU smoke` GitHub workflow is manual and targets a self-hosted runner label
 until this workflow passes on the relevant runtime version, model family, mode, and
 parallel topology.
 
+```console
+gh workflow run "GPU smoke" \
+  --repo LDB-org/LDB \
+  -f backend=vllm \
+  -f runtime_version=0.28.0 \
+  -f model=facebook/opt-125m \
+  -f mode=eager
+```
+
 The workflow requires an exact runtime package version instead of installing an
 unbounded latest release. Every run uploads the server log and, on success, a
 versioned `result.json` containing the LDB commit, backend version, model, execution
