@@ -82,6 +82,11 @@ immutable identities from the loaded model.
 negative indices count from that request's end. Live token selectors require at
 least one `--request` so continuous batches cannot be indexed ambiguously.
 
+Request-scoped controls require token-aligned hook rows. Residual, attention, MLP,
+and router-logit hooks retain the continuous batch layout. Individual expert-output
+hooks contain only routed tokens, so request-scoped traces, patches, and breakpoints
+targeting them are rejected instead of guessing an invalid row mapping.
+
 Patch and breakpoint IDs are immutable while installed. Remove an existing ID
 before reusing it. Reversible multi-rank commands snapshot prior state before
 mutation and restore successful ranks if another rank fails.

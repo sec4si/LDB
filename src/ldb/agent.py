@@ -247,6 +247,10 @@ class AgentRuntime:
                 raise ValueError("CUDA Graph traces cannot be request-scoped")
             if self.graph_control and arm.capture_tensors:
                 raise ValueError("CUDA Graph traces support scalar summaries only")
+            if arm.request_ids and not self.request_context:
+                raise ValueError("This runtime does not provide authoritative request context")
+            if arm.request_ids:
+                self._require_request_addressable(arm.hooks)
             if self.graph_control:
                 self._reset_graph_trace_baseline()
             with self._lock:
@@ -273,6 +277,8 @@ class AgentRuntime:
             self._require_matching_hooks((patch.hook,))
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
+            if patch.request_ids:
+                self._require_request_addressable((patch.hook,))
             if patch.token is not None and not patch.request_ids:
                 raise ValueError("Live token selectors require at least one request ID")
             _validate_live_patch(patch)
@@ -311,6 +317,8 @@ class AgentRuntime:
                 raise ValueError("Breakpoints are unavailable during CUDA Graph replay")
             if breakpoint.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
+            if breakpoint.request_ids:
+                self._require_request_addressable((breakpoint.hook,))
             with self._lock:
                 if breakpoint.breakpoint_id in self._breakpoints:
                     raise ValueError(f"Breakpoint ID already exists: {breakpoint.breakpoint_id}")
@@ -364,6 +372,21 @@ class AgentRuntime:
         ]
         if missing:
             raise ValueError(f"Hook pattern matches no installed hooks: {', '.join(missing)}")
+
+    def _require_request_addressable(self, patterns: tuple[str, ...]) -> None:
+        with self._lock:
+            unaddressable = sorted(
+                hook
+                for hook in self._hook_names
+                if ".moe.expert." in hook
+                and any(fnmatch.fnmatchcase(hook, pattern) for pattern in patterns)
+            )
+        if unaddressable:
+            raise ValueError(
+                "Request-scoped control requires token-aligned hooks; expert-local rows are "
+                "not request-addressable: "
+                + ", ".join(unaddressable)
+            )
 
     def process_tensor(self, hook: str, tensor: Any) -> Any:
         context = current_batch_context()

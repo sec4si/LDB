@@ -50,4 +50,9 @@ explicitly with `LDB_CUDA_GRAPH=1`. Patches support global scalar `scale`, `add`
 they do not expose request IDs or full tensors.
 
 Expert-output hooks are available only when experts remain visible as individual
-PyTorch modules. LDB does not claim visibility inside an opaque fused-MoE kernel.
+PyTorch modules. Their rows contain only tokens routed to that expert and therefore
+do not preserve the continuous batch's request-span layout. Global traces and
+interventions are supported, but request-scoped traces, patches, token selectors,
+and breakpoints fail closed on expert-output hooks. Router-logit hooks remain
+token-aligned and request-addressable. LDB does not claim visibility inside an
+opaque fused-MoE kernel.

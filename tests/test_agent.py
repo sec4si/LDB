@@ -455,6 +455,76 @@ def test_live_token_patch_requires_request_scope(tmp_path: Path) -> None:
         agent.close()
 
 
+@pytest.mark.parametrize(
+    ("method", "params"),
+    [
+        (
+            "arm",
+            {
+                "hooks": ["block.*.moe.expert.*.output"],
+                "request_ids": ["request-a"],
+            },
+        ),
+        (
+            "patch.set",
+            {
+                "patch_id": "expert-local",
+                "hook": "block.0.moe.expert.1.output",
+                "operation": "ablate",
+                "request_ids": ["request-a"],
+            },
+        ),
+        (
+            "break.set",
+            {
+                "breakpoint_id": "expert-local",
+                "hook": "block.0.moe.expert.1.output",
+                "request_ids": ["request-a"],
+            },
+        ),
+    ],
+)
+def test_request_scoped_control_rejects_expert_local_token_rows(
+    tmp_path: Path, method: str, params: dict[str, object]
+) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+        request_context=True,
+    ).start()
+    agent.register_hook("block.0.moe.expert.1.output")
+    try:
+        with pytest.raises(RuntimeError, match="expert-local rows are not request-addressable"):
+            AgentClient(agent.socket_path).call(method, params)
+    finally:
+        agent.close()
+
+
+def test_request_scoped_trace_requires_authoritative_context(tmp_path: Path) -> None:
+    agent = AgentRuntime(
+        backend="test",
+        backend_version="1",
+        model_id="test-model",
+        socket_dir=tmp_path / "agents",
+        output_dir=tmp_path / "runs",
+    ).start()
+    agent.register_hook("block.0.residual.post")
+    try:
+        with pytest.raises(RuntimeError, match="authoritative request context"):
+            AgentClient(agent.socket_path).call(
+                "arm",
+                {
+                    "hooks": ["block.0.residual.post"],
+                    "request_ids": ["request-a"],
+                },
+            )
+    finally:
+        agent.close()
+
+
 def test_breakpoint_accepts_patch_before_continue(tmp_path: Path) -> None:
     agent = AgentRuntime(
         backend="test",
