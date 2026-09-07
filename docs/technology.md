@@ -16,6 +16,7 @@ the serving engine.
 | Boundary | Choice | Reason |
 |---|---|---|
 | CLI | Typer, Rich, prompt-toolkit | Typed commands, terminal tables, and an interactive debugger loop without a frontend. |
+| Offline interpretability | TransformerLens 3.x `TransformerBridge` | Reuses broad model instrumentation while LDB owns artifacts, causal workflows, patches, and regression. |
 | Runtime integration | PyTorch module hooks | The narrowest common boundary across Transformers, vLLM, and SGLang eager execution. |
 | Serving plugins | `vllm.general_plugins`, `sglang.srt.plugins` | Prepared attachment through supported startup extension points. |
 | Control plane | Versioned JSON Lines over Unix sockets | Local, inspectable, dependency-light, and protected by filesystem ownership and `0600` permissions. |

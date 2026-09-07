@@ -14,8 +14,9 @@ alone.
 
 LDB is in its initial implementation phase. The first vertical slice supports:
 
-- loading a Hugging Face causal language model;
-- discovering normalized hook points for GPT-2 and Llama-family architectures;
+- loading a Hugging Face causal language model through TransformerLens 3.x
+  `TransformerBridge`, with a native Transformers fallback;
+- normalizing stable decoder hooks exposed by TransformerLens across model families;
 - recording hook summaries during real inference;
 - selectively capturing tensors as `safetensors`;
 - inspecting portable RunBundles from the terminal;
@@ -46,7 +47,7 @@ LDB currently targets Python 3.11 and 3.12.
 ```console
 python3.11 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[dev,transformers]'
+python -m pip install -e '.[dev,interpretability]'
 ```
 
 ## Quick start
@@ -79,6 +80,9 @@ ldb search sshleifer/tiny-gpt2 \
   --scale 0.5 --scale 0.75 --scale 1.25 \
   --output patch-search.json
 ```
+
+Offline analysis uses TransformerLens by default. Pass `--engine transformers` to
+use LDB's smaller native Hugging Face adapter instead.
 
 `ldb run` records scalar summaries for every normalized hook point. Full tensors are
 written only for hook names matched by `--capture`.
@@ -172,3 +176,5 @@ See [causal propagation graphs](docs/causal-graph.md) for the directed-edge
 experiment and its evidence boundary.
 See [causal ablation](docs/causal-ablation.md) for token-level removal experiments
 and effect interpretation.
+See [TransformerLens integration](docs/transformer-lens.md) for the offline engine
+boundary and normalized hook mapping.

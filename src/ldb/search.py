@@ -138,6 +138,13 @@ class CombinationSearchReport(FrozenModel):
     trials: tuple[CombinationTrial, ...]
 
 
+def _adapter_for_backend(backend: str) -> str:
+    return {
+        "transformerlens": "ldb.adapters.transformer_lens",
+        "transformers": "ldb.adapters.transformers",
+    }.get(backend, f"ldb.adapters.{backend}")
+
+
 def load_suite(path: Path) -> EvaluationSuite:
     return EvaluationSuite.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
@@ -269,7 +276,7 @@ def patch_from_search(report: SearchReport) -> NeuralPatch:
         model_id=report.model_id,
         model_revision=report.model_revision,
         tokenizer_hash=report.tokenizer_hash,
-        adapter="ldb.adapters.transformers",
+        adapter=_adapter_for_backend(report.backend),
         interventions=(
             Intervention(
                 hook=best.hook,
@@ -403,7 +410,7 @@ def patch_from_combination_search(report: CombinationSearchReport) -> NeuralPatc
         model_id=report.model_id,
         model_revision=report.model_revision,
         tokenizer_hash=report.tokenizer_hash,
-        adapter="ldb.adapters.transformers",
+        adapter=_adapter_for_backend(report.backend),
         interventions=best.interventions,
         evidence=EvidenceLevel.CAUSALLY_TESTED,
     )

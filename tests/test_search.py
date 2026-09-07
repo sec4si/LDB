@@ -101,6 +101,11 @@ def test_search_balances_target_gain_regression_and_complexity() -> None:
     assert patch.model_revision == "revision"
     assert patch.tokenizer_hash == "tokenizer-hash"
     assert patch.interventions[0].value == 0.75
+    transformer_lens_report = report.model_copy(update={"backend": "transformerlens"})
+    assert (
+        patch_from_search(transformer_lens_report).adapter
+        == "ldb.adapters.transformer_lens"
+    )
 
 
 def test_suite_rejects_duplicate_case_ids() -> None:

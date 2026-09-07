@@ -18,6 +18,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+interpretability = [
+  "transformer-lens>=3.8.1,<3.9",
+]
 transformers = [
   "torch>=2.6",
   "transformers>=5.9,<6",

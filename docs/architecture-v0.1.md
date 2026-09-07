@@ -41,7 +41,11 @@ flowchart LR
         SEARCH[Patch search]
         VERIFY[Regression verifier]
         PATCH[Neural Patch]
+        TL[TransformerLens Bridge]
         MODEL --> TRACE --> BUNDLE
+        TL --> TRACE
+        TL --> CAUSAL
+        TL --> SEARCH
         BUNDLE --> SAE
         MODEL --> CAUSAL
         MODEL --> SEARCH --> VERIFY --> PATCH
@@ -75,8 +79,11 @@ The multi-process design uses a versioned JSON-lines control protocol over a Uni
 domain socket. Control messages carry commands, events, metadata, and tensor
 references. Bulk tensors are stored outside the control channel.
 
-Version 0.1 now supports a prepared in-process agent controlled through a
-user-private Unix domain socket and keeps these concepts separate:
+Offline analysis uses TransformerLens 3.x `TransformerBridge` as its primary model
+instrumentation layer. LDB normalizes stable Bridge hooks into its own artifact
+schema and retains a native Transformers adapter as a narrow fallback. Version 0.1
+also supports a prepared in-process agent controlled through a user-private Unix
+domain socket and keeps these concepts separate:
 
 - control: session commands and typed events;
 - data: tensor files in a RunBundle;

@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import shlex
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -73,6 +74,27 @@ class _PatchArguments:
     request_ids: list[str] = field(default_factory=list)
 
 
+class OfflineEngine(StrEnum):
+    TRANSFORMER_LENS = "transformerlens"
+    TRANSFORMERS = "transformers"
+
+
+def _load_offline_adapter(
+    engine: OfflineEngine,
+    model: str,
+    *,
+    revision: str | None,
+    device: str,
+) -> Any:
+    if engine is OfflineEngine.TRANSFORMER_LENS:
+        from ldb.adapters.transformer_lens import TransformerLensAdapter
+
+        return TransformerLensAdapter(model, revision=revision, device=device)
+    from ldb.adapters.transformers import TransformersAdapter
+
+    return TransformersAdapter(model, revision=revision, device=device)
+
+
 def _record_callback(recorder: RunBundleRecorder, *, capture: bool) -> ProbeCallback:
     def callback(hook: HookPoint, tensor: Any) -> None:
         recorder.record(hook, tensor, capture=capture)
@@ -124,6 +146,7 @@ def run(
     ),
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
     max_new_tokens: Annotated[int, typer.Option("--max-new-tokens", min=1)] = 1,
     capture: Annotated[
         list[str] | None,
@@ -132,10 +155,8 @@ def run(
 ) -> None:
     """Run deterministic inference and write a latent trace bundle."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
     captures = capture or []
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     with RunBundleRecorder(output) as recorder:
         handles = []
         for hook in adapter.hook_points():
@@ -157,9 +178,9 @@ def run(
             model_id=model,
             model_revision=adapter.revision,
             tokenizer_id=model,
-            backend="transformers",
+            backend=adapter.backend,
             backend_version=adapter.backend_version,
-            adapter="ldb.adapters.transformers",
+            adapter=f"{type(adapter).__module__}.{type(adapter).__name__}",
             adapter_version=adapter.adapter_version,
             prompt=prompt,
             prompt_token_ids=tuple(adapter.tokenize(prompt)),
@@ -256,12 +277,11 @@ def causal(
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Localize a next-token behavior with clean/corrupt activation patching."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     report = causal_trace(
         adapter,
         clean_prompt=clean_prompt,
@@ -303,12 +323,11 @@ def ablate(
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Rank hook tokens by causal next-token effect under ablation."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     report = causal_ablation(
         adapter,
         prompt=prompt,
@@ -348,12 +367,11 @@ def causal_graph(
     output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Build directed causal propagation edges between latent hook points."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     report = causal_propagation_graph(
         adapter,
         clean_prompt=clean_prompt,
@@ -405,12 +423,11 @@ def search_patches(
     ] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Search minimal scalar activation patches with regression penalties."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     report = search_scale_patches(
         adapter,
         load_suite(suite),
@@ -457,12 +474,11 @@ def search_combinations(
     ] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Search bounded combinations of heterogeneous interventions."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
-    adapter = TransformersAdapter(model, revision=revision, device=device)
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
     report = search_candidate_combinations(
         adapter,
         load_suite(suite),
@@ -839,13 +855,17 @@ def verify_neural_patch(
         typer.Option("--verified-patch-output", help="Write patch with validation results"),
     ] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
 ) -> None:
     """Verify a Neural Patch against target and regression cases."""
 
-    from ldb.adapters.transformers import TransformersAdapter
-
     patch = load_patch(path)
-    adapter = TransformersAdapter(patch.model_id, revision=patch.model_revision, device=device)
+    adapter = _load_offline_adapter(
+        engine,
+        patch.model_id,
+        revision=patch.model_revision,
+        device=device,
+    )
     report = verify_patch(
         adapter,
         patch,

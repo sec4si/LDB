@@ -19,6 +19,11 @@ boundary checks, and does not make that version supported or GPU verified.
 
 The following boundaries were checked against upstream source on 2026-09-07.
 
+Offline analysis targets TransformerLens `3.8.x` through its recommended
+`TransformerBridge` API. LDB uses raw Hugging Face weight semantics, disables the
+Bridge's implicit BOS insertion for parity with serving prompts, and records the
+TransformerLens version in every resulting artifact.
+
 | Runtime snapshot | Upstream commit | Required boundaries |
 |---|---|---|
 | SGLang v0.5.19 | `0bcd822377da7b5718e674eaf9c870d349424dd1` | `sglang.srt.plugins`, `TpModelWorker.__init__`, `ModelRunner.forward`, `ForwardBatch.rids`, `ForwardBatch.extend_seq_lens_cpu` |
