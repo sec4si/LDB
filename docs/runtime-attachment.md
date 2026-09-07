@@ -101,7 +101,8 @@ coherent backend/model identity, rejects duplicate ranks, and requires the compl
 `0..world_size-1` rank set before issuing commands. The Unix-socket control plane is
 therefore single-host in v0.1; a distributed deployment spanning hosts must expose
 all workers through a deliberately colocated control plane before group attachment
-is safe.
+is safe. All ranks must also advertise the same capability set and TP/PP/DP sizes,
+whose product must equal `world_size` when topology metadata is available.
 
 Unknown fields are rejected. Socket requests are limited to 1 MiB and responses to
 16 MiB. Bulk tensors are written as `safetensors` instead of crossing the control

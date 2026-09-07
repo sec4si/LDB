@@ -204,10 +204,36 @@ def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
             "Agent directory contains incompatible runtimes: " + ", ".join(mismatched)
         )
 
+    capability_sets = {frozenset(descriptor.capabilities) for descriptor in descriptors}
+    if len(capability_sets) != 1:
+        raise ValueError("Agent directory contains incompatible runtime capabilities")
+    topology_sizes = {
+        tuple(
+            sorted(
+                (key, value)
+                for key, value in descriptor.topology.items()
+                if key.endswith("_size")
+            )
+        )
+        for descriptor in descriptors
+    }
+    if len(topology_sizes) != 1:
+        raise ValueError("Agent directory contains incompatible distributed topology sizes")
+
     ranks = tuple(descriptor.rank for descriptor in descriptors)
     if len(set(ranks)) != len(ranks):
         raise ValueError("Agent directory contains duplicate distributed ranks")
     world_size = descriptors[0].world_size
+    sizes = dict(next(iter(topology_sizes)))
+    if sizes:
+        topology_world_size = (
+            sizes.get("tp_size", 1) * sizes.get("pp_size", 1) * sizes.get("dp_size", 1)
+        )
+        if topology_world_size != world_size:
+            raise ValueError(
+                f"Distributed topology size {topology_world_size} does not match "
+                f"world_size {world_size}"
+            )
     expected = set(range(world_size))
     actual = set(ranks)
     if actual != expected:

@@ -143,6 +143,59 @@ def test_agent_group_rejects_incompatible_live_runtimes(tmp_path: Path) -> None:
             agent.close()
 
 
+def test_agent_group_rejects_incompatible_topology_sizes(tmp_path: Path) -> None:
+    agents = (
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=0,
+            world_size=2,
+            topology={"tp_rank": 0, "tp_size": 2, "pp_size": 1},
+        ).start(),
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=1,
+            world_size=2,
+            topology={"tp_rank": 0, "tp_size": 1, "pp_size": 2},
+        ).start(),
+    )
+    try:
+        with pytest.raises(ValueError, match="incompatible distributed topology sizes"):
+            AgentGroupClient.connect(tmp_path / "agents")
+    finally:
+        for agent in agents:
+            agent.close()
+
+
+def test_agent_group_rejects_mixed_execution_capabilities(tmp_path: Path) -> None:
+    agents = tuple(
+        AgentRuntime(
+            backend="test",
+            backend_version="1",
+            model_id="test-model",
+            socket_dir=tmp_path / "agents",
+            output_dir=tmp_path / "runs",
+            rank=rank,
+            world_size=2,
+            graph_control=bool(rank),
+        ).start()
+        for rank in range(2)
+    )
+    try:
+        with pytest.raises(ValueError, match="incompatible runtime capabilities"):
+            AgentGroupClient.connect(tmp_path / "agents")
+    finally:
+        for agent in agents:
+            agent.close()
+
+
 def test_agent_group_connects_complete_distributed_runtime_in_rank_order(
     tmp_path: Path,
 ) -> None:
