@@ -27,6 +27,14 @@ on:
         options:
           - eager
           - graph
+      attachment:
+        description: Attach at startup or inject after readiness
+        required: true
+        default: hot
+        type: choice
+        options:
+          - hot
+          - prepared
 
 jobs:
   smoke:
@@ -54,11 +62,12 @@ jobs:
           BACKEND: ${{ inputs.backend }}
           MODEL_ID: ${{ inputs.model }}
           MODE: ${{ inputs.mode }}
-        run: python scripts/gpu_smoke.py "$BACKEND" "$MODEL_ID" --mode "$MODE" --artifacts gpu-smoke-artifacts
+          ATTACHMENT: ${{ inputs.attachment }}
+        run: python scripts/gpu_smoke.py "$BACKEND" "$MODEL_ID" --mode "$MODE" --attachment "$ATTACHMENT" --artifacts gpu-smoke-artifacts
       - name: Upload acceptance evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gpu-smoke-${{ inputs.backend }}-${{ inputs.runtime_version }}-${{ inputs.mode }}
+          name: gpu-smoke-${{ inputs.backend }}-${{ inputs.runtime_version }}-${{ inputs.mode }}-${{ inputs.attachment }}
           path: gpu-smoke-artifacts/
           if-no-files-found: error

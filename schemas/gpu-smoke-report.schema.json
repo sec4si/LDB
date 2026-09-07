@@ -173,6 +173,15 @@
       "title": "Agents",
       "type": "array"
     },
+    "attachment": {
+      "default": "prepared",
+      "enum": [
+        "prepared",
+        "hot"
+      ],
+      "title": "Attachment",
+      "type": "string"
+    },
     "backend": {
       "enum": [
         "vllm",
@@ -234,6 +243,14 @@
       "default": null,
       "title": "Graph Patch Changed"
     },
+    "injected_pids": {
+      "default": [],
+      "items": {
+        "type": "integer"
+      },
+      "title": "Injected Pids",
+      "type": "array"
+    },
     "ldb_commit": {
       "title": "Ldb Commit",
       "type": "string"
@@ -256,6 +273,11 @@
       "title": "Passed",
       "type": "boolean"
     },
+    "patch_observed": {
+      "default": false,
+      "title": "Patch Observed",
+      "type": "boolean"
+    },
     "patched_digest": {
       "anyOf": [
         {
@@ -273,8 +295,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "ldb.gpu-smoke/v1alpha1",
-      "default": "ldb.gpu-smoke/v1alpha1",
+      "const": "ldb.gpu-smoke/v1alpha2",
+      "default": "ldb.gpu-smoke/v1alpha2",
       "title": "Schema Version",
       "type": "string"
     },
@@ -283,6 +305,7 @@
       "type": "string"
     },
     "trace_observed": {
+      "const": true,
       "title": "Trace Observed",
       "type": "boolean"
     }

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from ldb.models import HOOK_SCHEMA_VERSION, FrozenModel, InterventionKind, TensorSummary
 
@@ -118,23 +118,46 @@ class GpuDevice(FrozenModel):
 
 
 class GpuSmokeReport(FrozenModel):
-    schema_version: Literal["ldb.gpu-smoke/v1alpha1"] = "ldb.gpu-smoke/v1alpha1"
+    schema_version: Literal["ldb.gpu-smoke/v1alpha2"] = "ldb.gpu-smoke/v1alpha2"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     ldb_commit: str
     backend: Literal["vllm", "sglang"]
     backend_version: str
     model_id: str
     mode: Literal["eager", "graph"]
+    attachment: Literal["prepared", "hot"] = "prepared"
+    injected_pids: tuple[int, ...] = ()
     python_version: str
     torch_version: str
     cuda_version: str | None = None
     devices: tuple[GpuDevice, ...] = Field(min_length=1)
     agents: tuple[AgentDescriptor, ...] = Field(min_length=1)
-    trace_observed: bool
+    trace_observed: Literal[True]
+    patch_observed: bool = False
     graph_patch_changed: bool | None = None
     baseline_digest: str | None = None
     patched_digest: str | None = None
     passed: Literal[True] = True
+
+    @model_validator(mode="after")
+    def valid_acceptance_evidence(self) -> GpuSmokeReport:
+        if len(self.injected_pids) != len(set(self.injected_pids)) or any(
+            pid <= 1 for pid in self.injected_pids
+        ):
+            raise ValueError("Injected PIDs must be unique live-process identifiers")
+        if self.attachment == "hot" and (
+            self.mode != "eager" or not self.injected_pids or not self.patch_observed
+        ):
+            raise ValueError("Hot-attachment evidence requires eager execution and a live patch")
+        if self.mode == "graph" and (
+            self.attachment != "prepared"
+            or not self.patch_observed
+            or self.graph_patch_changed is not True
+        ):
+            raise ValueError(
+                "CUDA Graph evidence requires prepared attachment and a changed output"
+            )
+        return self
 
 
 class AgentRequest(FrozenModel):
