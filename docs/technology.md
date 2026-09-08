@@ -34,10 +34,12 @@ All versioned Pydantic artifacts and control messages have committed JSON Schema
 ## Deliberate exclusions
 
 - No web UI or application-level prompt observability layer.
-- No arbitrary process injection. The serving process must preload the dormant LDB
-  plugin; later attach and detach do not restart model weights.
+- Preloaded plugins support attach/detach without reloading weights. Opt-in Linux
+  CPython hot attachment has a separate injector and platform acceptance boundary;
+  see [runtime attachment](runtime-attachment.md).
 - No pickle for model-generated artifacts.
-- No permanent weight mutation in the initial architecture.
+- Permanent edits are exported to a new checkpoint; see [weight editing](weights-gradients-operators.md).
+  Runtime patches remain scoped interventions.
 - No claim that Python hooks can stop execution inside a fused CUDA kernel.
 
 ## Execution modes

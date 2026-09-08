@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "ActivationEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "dictionary_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary Hash"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "kind": {
+          "enum": [
+            "token",
+            "head",
+            "feature"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "layer": {
+          "minimum": 0,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "scale": {
+          "title": "Scale",
+          "type": "number"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        }
+      },
+      "required": [
+        "kind",
+        "layer",
+        "scale"
+      ],
+      "title": "ActivationEdit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "activation_hash": {
+      "title": "Activation Hash",
+      "type": "string"
+    },
+    "edits": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ActivationEdit"
+      },
+      "title": "Edits",
+      "type": "object"
+    },
+    "identity": {
+      "title": "Identity",
+      "type": "string"
+    },
+    "next_layer": {
+      "minimum": 0,
+      "title": "Next Layer",
+      "type": "integer"
+    },
+    "patches": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Patches",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": "ldb.layer-checkpoint/v1alpha2",
+      "enum": [
+        "ldb.layer-checkpoint/v1alpha1",
+        "ldb.layer-checkpoint/v1alpha2"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "identity",
+    "next_layer",
+    "patches",
+    "activation_hash"
+  ],
+  "title": "LayerCheckpoint",
+  "type": "object"
+}

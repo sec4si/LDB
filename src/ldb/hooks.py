@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ldb.agent import AgentRuntime
+from ldb.serving_hooks import has_deferred_residual, make_input_hook, make_residual_output_hook
 
 _AGENTS: dict[tuple[str, str, int], AgentRuntime] = {}
 
@@ -107,6 +108,21 @@ def install_model_runtime(
     module_by_path = dict(model.named_modules())
     block_path = _find_block_path(module_by_path)
     blocks = module_by_path[block_path]
+    local_layers = {
+        index: blocks[index]
+        for index in range(len(blocks))
+        if f"{type(blocks[index]).__module__}.{type(blocks[index]).__name__}"
+        not in {
+            "vllm.model_executor.models.utils.PPMissingLayer",
+            "sglang.srt.layers.utils.common.PPMissingLayer",
+        }
+    }
+    deferred = {index: has_deferred_residual(block) for index, block in local_layers.items()}
+    graph_control = bool(
+        (config or {}).get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1")
+    )
+    if graph_control and any(deferred.values()):
+        raise ValueError("Deferred-residual decoder hooks currently require eager execution")
     agent = get_or_create_agent(
         backend=backend,
         backend_version=backend_version,
@@ -115,18 +131,26 @@ def install_model_runtime(
         _start=False,
     )
 
-    for index in range(len(blocks)):
+    for index, block in local_layers.items():
         prefix = f"{block_path}.{index}"
-        block = module_by_path[prefix]
         _prepare_graph_hook(agent, f"block.{index}.residual.pre", block)
         pre_hook = f"block.{index}.residual.pre"
         agent.add_handle(
-            block.register_forward_pre_hook(_make_pre_hook(agent, pre_hook)), hook=pre_hook
+            block.register_forward_pre_hook(
+                make_input_hook(agent, pre_hook, block, deferred=deferred[index]),
+                with_kwargs=True,
+            ),
+            hook=pre_hook,
         )
         _prepare_graph_hook(agent, f"block.{index}.residual.post", block)
         post_hook = f"block.{index}.residual.post"
         agent.add_handle(
-            block.register_forward_hook(_make_post_hook(agent, post_hook)), hook=post_hook
+            block.register_forward_hook(
+                make_residual_output_hook(agent, post_hook)
+                if deferred[index]
+                else _make_post_hook(agent, post_hook)
+            ),
+            hook=post_hook,
         )
         _install_first_post_hook(
             agent,
@@ -222,13 +246,10 @@ def _validate_existing_agent(
         "socket_dir": socket_dir,
         "output_dir": output_dir,
     }
-    mismatched = [
-        field for field, value in expected.items() if getattr(agent, field) != value
-    ]
+    mismatched = [field for field, value in expected.items() if getattr(agent, field) != value]
     if mismatched:
         raise RuntimeError(
-            "Refusing to reuse an LDB agent with incompatible identity: "
-            + ", ".join(mismatched)
+            "Refusing to reuse an LDB agent with incompatible identity: " + ", ".join(mismatched)
         )
 
 
@@ -277,13 +298,6 @@ def _process_output(agent: AgentRuntime, hook: str, output: Any) -> Any:
     return values
 
 
-def _make_pre_hook(agent: AgentRuntime, hook: str) -> Any:
-    def callback(_: Any, inputs: tuple[Any, ...]) -> Any:
-        return _process_output(agent, hook, inputs)
-
-    return callback
-
-
 def _make_post_hook(agent: AgentRuntime, hook: str) -> Any:
     def callback(_: Any, __: tuple[Any, ...], output: Any) -> Any:
         return _process_output(agent, hook, output)
@@ -322,7 +336,10 @@ def _install_first_pre_hook(
             hook = f"block.{index}.{normalized}"
             _prepare_graph_hook(agent, hook, module)
             agent.add_handle(
-                module.register_forward_pre_hook(_make_pre_hook(agent, hook)), hook=hook
+                module.register_forward_pre_hook(
+                    make_input_hook(agent, hook, module), with_kwargs=True
+                ),
+                hook=hook,
             )
             return
 

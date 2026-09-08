@@ -124,67 +124,15 @@ def main() -> None:
                 AgentDescriptor.model_validate(status["descriptor"]) for status in statuses
             )
             if args.mode == "eager":
-                _ldb(agents, "arm 'block.0.residual.post'")
-                baseline = _completion(args.port, args.model)
-                rank_events = _ldb_json(agents, "events")
-                if not all(
-                    any(event.get("hook") == "block.0.residual.post" for event in events)
-                    for events in rank_events
-                ):
-                    raise RuntimeError(
-                        "Every rank must receive the normalized eager trace event"
-                    )
-                if args.attachment == "hot":
-                    _ldb(agents, "clear")
-                    _ldb(agents, "patch-set hot-ablate block.0.residual.post ablate")
-                    patched = _completion(args.port, args.model)
-                    rank_events = _ldb_json(agents, "events")
-                    patch_observed = all(
-                        any(
-                            event.get("hook") == "block.0.residual.post"
-                            and "hot-ablate" in event.get("patch_ids", [])
-                            and event.get("patched_summary") is not None
-                            for event in events
-                        )
-                        for events in rank_events
-                    )
-                    _ldb(agents, "patch-remove hot-ablate")
-                    if not patch_observed:
-                        raise RuntimeError("Hot-attached patch did not execute on a live request")
+                baseline, patched = _exercise_eager(agents, args.port, args.model, root)
+                patch_observed = True
             else:
                 for capability in ("trace.cuda_graph", "patch.cuda_graph"):
-                    if not all(
-                        capability in descriptor.capabilities for descriptor in descriptors
-                    ):
+                    if not all(capability in descriptor.capabilities for descriptor in descriptors):
                         raise RuntimeError(
                             f"Every agent must advertise CUDA Graph capability {capability}"
                         )
-                _ldb(agents, "arm 'block.0.residual.post'")
-                baseline = _completion(args.port, args.model)
-                rank_events = _ldb_json(agents, "events")
-                if not all(
-                    any(
-                        event.get("hook") == "block.0.residual.post"
-                        and event.get("source") == "cuda_graph"
-                        for event in events
-                    )
-                    for events in rank_events
-                ):
-                    raise RuntimeError(
-                        "CUDA Graph replay did not update every rank's trace summary slot"
-                    )
-                _ldb(agents, "patch-set graph-ablate block.0.residual.post ablate")
-                patched = _completion(args.port, args.model)
-                if baseline["choices"] == patched["choices"]:
-                    raise RuntimeError(
-                        "CUDA Graph replay did not observe the control-buffer update"
-                    )
-                patches = _ldb_json(agents, "patches")
-                if not all(
-                    any(patch.get("patch_id") == "graph-ablate" for patch in rank_patches)
-                    for rank_patches in patches
-                ):
-                    raise RuntimeError("CUDA Graph patch was not retained by the live agent")
+                baseline, patched = _exercise_graph(agents, args.port, args.model, root)
                 patch_observed = True
             _write_report(
                 root / "result.json",
@@ -208,6 +156,132 @@ def main() -> None:
                     server.wait(timeout=10)
     finally:
         temporary.cleanup()
+
+
+def _trace_on_owners(
+    events: list[Any],
+    owners: tuple[int, ...],
+    hook: str,
+    patch_id: str | None = None,
+    *,
+    source: str | None = None,
+) -> bool:
+    return bool(owners) and all(
+        index < len(events)
+        and any(
+            event.get("hook") == hook
+            and (source is None or event.get("source") == source)
+            and (
+                patch_id is None
+                or (
+                    patch_id in event.get("patch_ids", [])
+                    and event.get("patched_summary") is not None
+                )
+            )
+            for event in events[index]
+        )
+        for index in owners
+    )
+
+
+def _exercise_eager(
+    agents: Path, port: int, model: str, root: Path
+) -> tuple[dict[str, object], dict[str, object]]:
+    hook, patch_id = "block.0.residual.post", "smoke-ablate"
+    inventories = _ldb_json(agents, "hooks")
+    owners = tuple(index for index, hooks in enumerate(inventories) if hook in hooks)
+    if not owners:
+        raise RuntimeError("No rank owns the eager acceptance hook")
+    evidence: dict[str, Any] = {
+        "hook": hook,
+        "owner_indices": owners,
+        "hook_inventories": inventories,
+    }
+
+    def record(key: str, value: Any) -> None:
+        evidence[key] = value
+        (root / "eager-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
+
+    _ldb(agents, f"arm '{hook}'")
+    baseline = _completion(port, model)
+    record("baseline", baseline)
+    events = _ldb_json(agents, "events")
+    record("baseline_events", events)
+    if not _trace_on_owners(events, owners, hook):
+        raise RuntimeError("Every owning rank must produce the eager trace event")
+    _ldb(agents, "clear")
+    _ldb(agents, f"patch-set {patch_id} {hook} ablate")
+    try:
+        patched = _completion(port, model)
+        record("patched", patched)
+        events = _ldb_json(agents, "events")
+        record("patched_events", events)
+        if not _trace_on_owners(events, owners, hook, patch_id):
+            raise RuntimeError("Eager patch did not execute on every owning rank")
+        if baseline["choices"] == patched["choices"]:
+            raise RuntimeError("Eager patch did not change completion or token log probability")
+    finally:
+        _ldb(agents, f"patch-remove {patch_id}")
+    restored = _completion(port, model)
+    record("restored", restored)
+    if baseline["choices"] != restored["choices"]:
+        raise RuntimeError("Eager patch removal did not restore deterministic baseline choices")
+    record("restoration_verified", True)
+    return baseline, patched
+
+
+def _exercise_graph(
+    agents: Path, port: int, model: str, root: Path
+) -> tuple[dict[str, object], dict[str, object]]:
+    hook, patch_id = "block.0.residual.post", "graph-ablate"
+    inventories = _ldb_json(agents, "hooks")
+    owners = tuple(index for index, hooks in enumerate(inventories) if hook in hooks)
+    if not owners:
+        raise RuntimeError("No rank owns the CUDA Graph acceptance hook")
+    evidence: dict[str, Any] = {
+        "hook": hook,
+        "owner_indices": owners,
+        "hook_inventories": inventories,
+    }
+
+    def record(key: str, value: Any) -> None:
+        evidence[key] = value
+        (root / "graph-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
+
+    _ldb(agents, f"arm '{hook}'")
+    baseline = _completion(port, model)
+    record("baseline", baseline)
+    events = _ldb_json(agents, "events")
+    record("baseline_events", events)
+    if not _trace_on_owners(events, owners, hook, source="cuda_graph"):
+        raise RuntimeError("CUDA Graph replay did not update every owning rank's trace slot")
+    _ldb(agents, "clear")
+    _ldb(agents, f"patch-set {patch_id} {hook} ablate")
+    try:
+        patched = _completion(port, model)
+        record("patched", patched)
+        events = _ldb_json(agents, "events")
+        record("patched_events", events)
+        if not _trace_on_owners(events, owners, hook, source="cuda_graph"):
+            raise RuntimeError("Patched CUDA Graph replay did not update every owning rank")
+        if baseline["choices"] == patched["choices"]:
+            raise RuntimeError("CUDA Graph replay did not observe the control-buffer update")
+        patches = _ldb_json(agents, "patches")
+        record("patches", patches)
+        if not all(
+            index < len(patches)
+            and any(patch.get("patch_id") == patch_id for patch in patches[index])
+            for index in owners
+        ):
+            raise RuntimeError("CUDA Graph patch was not retained by every owning agent")
+    finally:
+        _ldb(agents, f"patch-remove {patch_id}")
+    restored = _completion(port, model)
+    record("restored", restored)
+    if baseline["choices"] != restored["choices"]:
+        raise RuntimeError("CUDA Graph patch removal did not restore baseline choices")
+    record("restoration_verified", True)
+    return baseline, patched
 
 
 def _wait_ready(port: int, server: subprocess.Popen[bytes], log_path: Path) -> None:
@@ -287,8 +361,8 @@ def _worker_candidates(server_pid: int, backend: Literal["vllm", "sglang"]) -> t
         process = Path(f"/proc/{pid}")
         try:
             executable = (process / "exe").resolve().name.lower()
-            command = (process / "cmdline").read_bytes().replace(b"\0", b" ").decode(
-                errors="replace"
+            command = (
+                (process / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
             )
         except OSError:
             continue
@@ -301,8 +375,7 @@ def _worker_candidates(server_pid: int, backend: Literal["vllm", "sglang"]) -> t
             else ("modelrunner", "scheduler", "worker", "sglang")
         )
         score = sum(
-            (len(keywords) - index) * (keyword in text)
-            for index, keyword in enumerate(keywords)
+            (len(keywords) - index) * (keyword in text) for index, keyword in enumerate(keywords)
         )
         candidates.append((score, pid))
     candidates.sort(key=lambda item: (-item[0], item[1]))

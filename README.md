@@ -212,3 +212,29 @@ See [TransformerLens integration](docs/transformer-lens.md) for the offline engi
 boundary and normalized hook mapping.
 See [automatic diagnosis](docs/automatic-diagnosis.md) for the one-command causal
 localization and bounded patch-search workflow.
+See [the offline layer debugger](docs/layer-debugger.md) for GPT-2 stepping,
+token/head/SAE edits, answer comparisons, checkpoints, and regression suites.
+See [model editing and training research](docs/model-editing-and-training.md) for
+the supported edit surfaces and the limits of using interventions to guide training.
+See [weights, gradients, and operator debugging](docs/weights-gradients-operators.md)
+for checkpoint export, training traces, and eager ATen stepping.
+
+## Development
+
+```sh
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e '.[transformers,dev]'
+.venv/bin/python -m ruff check .
+.venv/bin/python -m mypy src
+.venv/bin/python -m pytest
+.venv/bin/python scripts/generate_schemas.py
+.venv/bin/python -m pip wheel --no-deps . -w dist
+```
+
+## Repository boundary
+
+LDB contains the debugger, runtime adapters, model editing, gradient/operator tools,
+and engineering acceptance tests. Fingerprint algorithms, exploratory studies and
+research results live in the separate [expert-fingerprint-research](https://github.com/LDB-org/expert-fingerprint-research) repository.
+Neither research code nor its dependencies are required to install LDB.
+See [the split record](docs/repository-split.md) for the local layout and provenance.

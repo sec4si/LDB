@@ -55,7 +55,7 @@ def _after_worker_init(
     ps = worker.ps
     tp_rank = int(getattr(ps, "tp_rank", 0))
     pp_rank = int(getattr(ps, "pp_rank", 0))
-    dp_rank = int(getattr(ps, "dp_rank", 0))
+    dp_rank = int(getattr(ps, "dp_rank", None) or 0)
     tp_size = int(getattr(ps, "tp_size", 1))
     pp_size = int(getattr(ps, "pp_size", 1))
     dp_size = int(getattr(ps, "dp_size", 1))
@@ -142,7 +142,7 @@ def install_running_runtimes(
         parallel = getattr(candidate, "ps", candidate)
         tp_rank = int(getattr(parallel, "tp_rank", 0))
         pp_rank = int(getattr(parallel, "pp_rank", 0))
-        dp_rank = int(getattr(parallel, "dp_rank", 0))
+        dp_rank = int(getattr(parallel, "dp_rank", None) or 0)
         tp_size = int(getattr(parallel, "tp_size", 1))
         pp_size = int(getattr(parallel, "pp_size", 1))
         dp_size = int(getattr(parallel, "dp_size", 1))

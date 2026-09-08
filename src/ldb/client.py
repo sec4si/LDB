@@ -85,8 +85,7 @@ class AgentGroupClient:
         instances = {descriptor.instance_id for descriptor, _ in connected}
         if instance_id is None and len(instances) > 1:
             raise ValueError(
-                "Agent directory contains multiple runtime instances; "
-                "select one with --instance"
+                "Agent directory contains multiple runtime instances; select one with --instance"
             )
         _validate_agent_group(tuple(descriptor for descriptor, _ in connected))
         connected.sort(key=lambda item: item[0].rank)
@@ -94,14 +93,17 @@ class AgentGroupClient:
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> list[Any]:
         values = params or {}
-        self._validate_hook_patterns(method, values)
+        routed = self._route_hook_patterns(method, values)
         rollbacks = self._prepare_rollbacks(method, values)
         results: list[Any] = []
         errors: list[str] = []
         successful: list[tuple[AgentClient, Rollback]] = []
-        for client, rollback in zip(self.clients, rollbacks, strict=True):
+        for client, rollback, local in zip(self.clients, rollbacks, routed, strict=True):
+            if local is None:
+                results.append({"skipped": True, "reason": "hook_not_local"})
+                continue
             try:
-                results.append(client.call(method, values))
+                results.append(client.call(method, local))
                 successful.append((client, rollback))
             except Exception as exc:
                 errors.append(f"{client.socket_path}: {exc}")
@@ -113,19 +115,25 @@ class AgentGroupClient:
             raise RuntimeError(detail)
         return results
 
-    def _validate_hook_patterns(self, method: str, params: dict[str, Any]) -> None:
+    def _route_hook_patterns(
+        self, method: str, params: dict[str, Any]
+    ) -> list[dict[str, Any] | None]:
+        broadcast: list[dict[str, Any] | None] = [params] * len(self.clients)
         if method == "arm":
             patterns = tuple(str(value) for value in params.get("hooks", ()))
         elif method in {"patch.set", "break.set"} and "hook" in params:
             patterns = (str(params["hook"]),)
         else:
-            return
+            return broadcast
         try:
-            available = {str(hook) for client in self.clients for hook in client.call("hooks")}
+            inventories = [
+                tuple(str(hook) for hook in client.call("hooks")) for client in self.clients
+            ]
         except Exception as exc:
             raise RuntimeError(f"Agent group hook preflight failed: {exc}") from exc
+        available = {hook for inventory in inventories for hook in inventory}
         if not available:
-            return
+            return broadcast
         missing = [
             pattern
             for pattern in patterns
@@ -136,6 +144,26 @@ class AgentGroupClient:
                 "Hook pattern matches no installed hooks across attached ranks: "
                 + ", ".join(missing)
             )
+        if method in {"patch.set", "break.set"}:
+            identifier = "patch_id" if method == "patch.set" else "breakpoint_id"
+            listing = "patch.list" if method == "patch.set" else "break.list"
+            for client in self.clients:
+                if any(item[identifier] == params.get(identifier) for item in client.call(listing)):
+                    raise ValueError(
+                        f"ID already exists on an attached rank: {params.get(identifier)}"
+                    )
+        routed: list[dict[str, Any] | None] = []
+        for inventory in inventories:
+            local = [
+                pattern
+                for pattern in patterns
+                if any(fnmatch.fnmatchcase(hook, pattern) for hook in inventory)
+            ]
+            if method == "arm":
+                routed.append({**params, "hooks": local})
+            else:
+                routed.append(params if local else None)
+        return routed
 
     def _prepare_rollbacks(self, method: str, params: dict[str, Any]) -> list[Rollback]:
         if method == "patch.set":
@@ -217,9 +245,7 @@ def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
         if len({getattr(descriptor, field) for descriptor in descriptors}) != 1
     ]
     if mismatched:
-        raise ValueError(
-            "Agent directory contains incompatible runtimes: " + ", ".join(mismatched)
-        )
+        raise ValueError("Agent directory contains incompatible runtimes: " + ", ".join(mismatched))
 
     capability_sets = {frozenset(descriptor.capabilities) for descriptor in descriptors}
     if len(capability_sets) != 1:
@@ -227,9 +253,7 @@ def _validate_agent_group(descriptors: tuple[AgentDescriptor, ...]) -> None:
     topology_sizes = {
         tuple(
             sorted(
-                (key, value)
-                for key, value in descriptor.topology.items()
-                if key.endswith("_size")
+                (key, value) for key, value in descriptor.topology.items() if key.endswith("_size")
             )
         )
         for descriptor in descriptors

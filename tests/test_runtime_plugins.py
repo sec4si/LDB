@@ -229,7 +229,8 @@ def test_hot_vllm_install_discovers_existing_runner(monkeypatch) -> None:
     assert installed[0][1]["config"]["request_context"] is True
 
 
-def test_hot_sglang_install_discovers_existing_runner(monkeypatch) -> None:
+@pytest.mark.parametrize("dp_rank", [None, 0, 1])
+def test_hot_sglang_install_discovers_existing_runner(monkeypatch, dp_rank) -> None:
     installed = []
 
     class ModelRunner:
@@ -242,6 +243,7 @@ def test_hot_sglang_install_discovers_existing_runner(monkeypatch) -> None:
             return forward_batch
 
     runner = ModelRunner()
+    runner.ps = SimpleNamespace(dp_rank=dp_rank, dp_size=2 if dp_rank else 1)
     monkeypatch.setattr(
         sglang_adapter.importlib,
         "import_module",
@@ -259,3 +261,25 @@ def test_hot_sglang_install_discovers_existing_runner(monkeypatch) -> None:
     assert agents == ["agent"]
     assert installed[0][1]["model_id"] == "live-model"
     assert installed[0][1]["config"]["request_context"] is True
+    assert installed[0][1]["config"]["topology"]["dp_rank"] == (dp_rank or 0)
+
+
+@pytest.mark.parametrize("dp_rank", [None, 0, 1])
+def test_sglang_prepared_attachment_handles_optional_dp_rank(monkeypatch, dp_rank):
+    installed = []
+    worker = SimpleNamespace(
+        model_runner=SimpleNamespace(
+            model=SimpleNamespace(config=SimpleNamespace(_commit_hash="commit")),
+            server_args=SimpleNamespace(model_path="live-model"),
+        ),
+        ps=SimpleNamespace(dp_rank=dp_rank, dp_size=2 if dp_rank else 1),
+    )
+    monkeypatch.setattr(
+        sglang_adapter,
+        "install_model_runtime",
+        lambda *args, **kwargs: installed.append(kwargs),
+    )
+    sglang_adapter._after_worker_init(None, worker, backend_version="0.5.19")
+
+    assert installed[0]["config"]["rank"] == (dp_rank or 0)
+    assert installed[0]["config"]["topology"]["dp_rank"] == (dp_rank or 0)

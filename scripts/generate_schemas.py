@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from ldb.attention import AttentionReport
 from ldb.causal import AblationReport, CausalGraphReport, CausalReport
+from ldb.checkpoints import LayerCheckpoint
 from ldb.diagnosis import DiagnosisReport
 from ldb.live import (
     AgentDescriptor,
@@ -33,6 +34,7 @@ from ldb.search import (
 from ldb.verification import VerificationReport
 
 SCHEMAS: dict[str, type[BaseModel]] = {
+    "layer-checkpoint": LayerCheckpoint,
     "ablation-report": AblationReport,
     "attention-report": AttentionReport,
     "agent-descriptor": AgentDescriptor,

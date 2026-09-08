@@ -1,5 +1,9 @@
 # GPU Acceptance
 
+Completed runs: [WSL2 / RTX 4070 single-GPU eager acceptance, 2026-09-08](wsl-gpu-acceptance.md).
+The record includes vLLM 0.28.0 and SGLang 0.5.19 with Qwen3-0.6B,
+required environment settings, failure logs and successful intervention/restoration evidence.
+
 Source-contract tests cannot prove that hooks survive a serving runtime's model
 wrapping, compilation, distributed topology, or CUDA Graph replay. LDB therefore
 ships a real-server smoke harness rather than labeling source-audited combinations
@@ -23,8 +27,11 @@ python scripts/gpu_smoke.py sglang facebook/opt-125m --mode eager --attachment h
 ```
 
 Hot attachment is eager-only: hooks cannot be inserted retroactively into CUDA Graphs
-captured before injection. The hot test requires both a normalized trace event and a
-`patched_summary` carrying the injected patch ID from a subsequent real HTTP request.
+captured before injection. Both hot and prepared eager tests require a normalized
+trace and a `patched_summary` carrying the patch ID from a subsequent real HTTP
+request. The patch must change completion choices or token log probability; removal
+must restore deterministic baseline choices. Missing effects or restoration fail
+acceptance, and raw evidence is retained for diagnosis.
 The self-hosted runner must permit same-UID `ptrace` or grant `CAP_SYS_PTRACE`, and
 must provide `gdb`, a C compiler, and libc development headers.
 
@@ -35,6 +42,29 @@ a normalized hook, and requires a replay-produced graph trace event. It then rec
 a deterministic baseline completion, installs a global ablation, and requires the
 replayed completion or token log-probability to change. Merely seeing agent state
 does not count as graph-execution evidence.
+
+Graph acceptance also checks only ranks owning the selected hook, requires replay
+events before and after intervention, and verifies deterministic restoration after
+removing the patch. Ordinary eager trace events cannot satisfy this gate.
+`graph-evidence.json` retains owner inventories, responses, events, live patch
+records and restoration results. Missing evidence from any owning rank fails.
+
+Eager evidence is checked on ranks that actually own `block.0.residual.post`;
+pipeline stages that do not execute that layer are not required to emit its event.
+`eager-evidence.json` records the hook inventories, owning result indices, original
+HTTP responses, trace/patch events and restoration result. Owner indices follow the
+rank-sorted agent array in `result.json`. Every owning rank must produce evidence.
+
+For the newly adapted SGLang Qwen3 contract, start with ordinary single-GPU eager
+execution; do not enable sequence/context parallelism or quantized activations:
+
+```console
+python scripts/gpu_smoke.py sglang Qwen/Qwen3-0.6B --mode eager --attachment prepared --artifacts evidence/sglang-qwen3-eager
+python scripts/gpu_smoke.py vllm Qwen/Qwen3-0.6B --mode eager --attachment prepared --artifacts evidence/vllm-qwen3-eager
+```
+
+These are acceptance commands, not records of completed GPU runs. The harness
+starts an isolated server on its configured port and shuts it down on completion.
 
 The `GPU smoke` GitHub workflow is manual and targets a self-hosted runner labeled
 `self-hosted`, `linux`, `x64`, and `gpu`. A runtime combination is not GPU verified

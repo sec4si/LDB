@@ -38,6 +38,13 @@ combination is listed as verified.
 
 ## Runtime matrix
 
+2026-09-08: Qwen3-0.6B passed real single-GPU prepared/eager acceptance on
+WSL2 + RTX 4070 for vLLM 0.28.0 (V1 runner, FlashAttention 2, PyTorch sampler)
+and SGLang 0.5.19 (Triton attention, PyTorch sampler). Trace, global residual
+ablation and deterministic restoration passed. This does not extend verification
+to hot attachment, CUDA Graphs, distributed execution or other architectures.
+See [the run record and configuration restrictions](wsl-gpu-acceptance.md).
+
 | Capability | Transformers eager | SGLang eager | vLLM eager | CUDA Graph replay |
 |---|---:|---:|---:|---:|
 | Normalized module trace | Yes | Implemented | Implemented | Experimental summaries |
@@ -54,6 +61,68 @@ combination is listed as verified.
 "Implemented" means the adapter and protocol path exist and have dependency-free
 contract tests. It does not mean every model architecture or kernel backend has
 passed a real GPU acceptance run.
+
+## Decoder activation contracts
+
+The native serving hooks bind the model's forward signature and select the floating
+activation argument, including keyword calls. Positional tensors such as integer
+RoPE positions must never be treated as residual activations.
+
+The following eager decoder contracts were checked against the pinned runtime source:
+
+| Runtime | Decoder class | Residual representation | Local validation |
+|---|---|---|---|
+| vLLM 0.28.0 | `LlamaDecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
+| vLLM 0.28.0 | `Qwen2DecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
+| vLLM 0.28.0 | `Qwen3DecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
+| SGLang 0.5.19 | `LlamaDecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
+| SGLang 0.5.19 | `Qwen2DecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
+| SGLang 0.5.19 | `Qwen3DecoderLayer` | Communicator-managed sum with additional residual input | CPU contracts for unsharded TP1/DP1/CP1 eager |
+
+For these supported contracts, `block.N.residual.pre` means the logical input
+sum, and `block.N.residual.post` means the logical output sum. The first output tensor
+alone is generally the MLP contribution, not the complete residual stream. Trace-only
+and no-op operations preserve the original pair. Interventions replace changed
+elements by a `(modified, zero)` decomposition, preserving unmodified elements'
+original split tensors so unrelated request rows are not unnecessarily rewritten.
+Dormant hooks do not materialize the sum. SGLang Qwen3 also validates its communicator:
+all layer modes must be `FULL` or `TP_ATTN_FULL`, communication group sizes must
+be one, and sequence-parallel variants, reduce-scatter and fused all-reduce
+quantization must be disabled. With an existing residual, `post_residual_addition`
+contributes to the input sum. Interventions adjust it only at modified elements,
+avoiding double addition. With no residual, the upstream behavior ignores that input.
+
+This path requires matching floating tensor shapes, dtypes, and devices. Quantized
+activation payloads, unknown decoder signatures with a `residual` argument, and
+CUDA Graph mode for these deferred-residual decoders fail explicitly. The change
+does not extend runtime version whitelists or validate distributed GPU execution, quantized
+models, arbitrary Llama/Qwen derivatives, or actual GPU kernels. Named decoder
+contracts are not blanket model-family certification. GPU acceptance remains required.
+
+The normalized hook schema is now `ldb.hooks/v1alpha3`. Older reports remain
+historical artifacts, but v1alpha2 patches must be regenerated and reverified before
+loading into the new live agents: deferred-residual hook meaning has changed, so
+silently reusing an old patch or merely editing its version field is not sufficient.
+
+Pipeline-parallel `PPMissingLayer` modules are skipped during hook installation,
+preserving global indices for real local layers. Group `arm` filters patterns per
+rank; patch and breakpoint creation goes only to owning ranks. Other ranks return
+an explicit `hook_not_local` skip. IDs stay unique across the group, and partial
+failures roll back successful owners. Three local Unix-socket agents test routing
+and rollback on CPU; this does not constitute multi-GPU pipeline acceptance.
+The placeholder identities follow the defining modules, including SGLang's
+`sglang.srt.layers.utils.common.PPMissingLayer` (the shorter `layers.utils` path
+only re-exports it). Sources: [SGLang placeholder](https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/layers/utils/common.py),
+[vLLM placeholder](https://github.com/vllm-project/vllm/blob/v0.28.0/vllm/model_executor/models/utils.py).
+
+Source references: [vLLM Llama](https://github.com/vllm-project/vllm/blob/v0.28.0/vllm/model_executor/models/llama.py),
+[vLLM Qwen2](https://github.com/vllm-project/vllm/blob/v0.28.0/vllm/model_executor/models/qwen2.py),
+[vLLM Qwen3](https://github.com/vllm-project/vllm/blob/v0.28.0/vllm/model_executor/models/qwen3.py),
+[SGLang Llama](https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/models/llama.py),
+[SGLang Qwen2](https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/models/qwen2.py),
+[SGLang Qwen3](https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/models/qwen3.py).
+Its additional residual behavior follows the pinned
+[LayerCommunicator](https://github.com/sgl-project/sglang/blob/v0.5.19/python/sglang/srt/layers/communicator.py).
 
 The shared-object injection mechanism has passed an isolated Linux acceptance test
 for already-running vLLM-shaped and SGLang-shaped CPython workers, including agent

@@ -374,8 +374,6 @@ class AgentRuntime:
         raise ValueError(f"Unknown agent method: {method}")
 
     def _require_matching_hooks(self, patterns: tuple[str, ...]) -> None:
-        if self.world_size > 1:
-            return
         with self._lock:
             hooks = tuple(self._hook_names)
         if not hooks:
@@ -427,6 +425,14 @@ class AgentRuntime:
         return patch.model_copy(
             update={"head": patch.head - first, "num_heads": local_heads}
         )
+
+    def needs_hook(self, hook: str) -> bool:
+        """Avoid materializing a deferred residual while its hook is dormant."""
+        with self._lock:
+            patterns = list(self._arm.hooks)
+            patterns.extend(patch.hook for patch in self._patches.values() if patch.enabled)
+            patterns.extend(item.hook for item in self._breakpoints.values() if item.enabled)
+            return any(fnmatch.fnmatchcase(hook, pattern) for pattern in patterns)
 
     def process_tensor(self, hook: str, tensor: Any) -> Any:
         context = current_batch_context()

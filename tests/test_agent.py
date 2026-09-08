@@ -309,7 +309,7 @@ def test_group_validates_hooks_across_pipeline_ranks(tmp_path: Path) -> None:
     group = AgentGroupClient(tuple(AgentClient(agent.socket_path) for agent in agents))
     try:
         group.call("arm", {"hooks": ["block.1.*"]})
-        assert all(result["armed"] for result in group.call("status"))
+        assert [result["armed"] for result in group.call("status")] == [False, True]
         with pytest.raises(ValueError, match="across attached ranks"):
             group.call("arm", {"hooks": ["block.99.*"]})
     finally:

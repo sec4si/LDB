@@ -1,0 +1,28 @@
+schema_version: ldb.suite/v1alpha1
+target:
+  - case_id: john-gives-mary
+    prompt: When John and Mary went to the store, John gave a drink to
+    target_text: ' Mary'
+    category: recipient
+  - case_id: mary-gives-john
+    prompt: When John and Mary went to the store, Mary gave a drink to
+    target_text: ' John'
+    category: recipient
+related:
+  - case_id: sarah-gives-david
+    prompt: While Sarah and David were at the office, Sarah gave a letter to
+    target_text: ' David'
+    category: recipient-paraphrase
+  - case_id: david-gives-sarah
+    prompt: While Sarah and David were at the office, David gave a letter to
+    target_text: ' Sarah'
+    category: recipient-paraphrase
+regression:
+  - case_id: copy-john
+    prompt: The person's first name was John. Their first name was
+    target_text: ' John'
+    category: name-copy
+  - case_id: copy-mary
+    prompt: The person's first name was Mary. Their first name was
+    target_text: ' Mary'
+    category: name-copy

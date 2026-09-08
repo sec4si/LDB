@@ -18,6 +18,11 @@ adapter for compatibility and adapter debugging.
 
 ## Numeric contract
 
+GPT-2/MPS IOI parity was verified against the native adapter on 2026-09-08:
+70 paired comparisons passed a predeclared `1e-3` absolute tolerance and matched
+all top-1 tokens. See the [experiment record](../../expert-fingerprint-research/docs/transformer-lens-ioi-parity.md),
+including the explicit BOS settings and differing tokenizer fingerprints.
+
 LDB uses TransformerBridge's default raw Hugging Face weight semantics. It passes
 `prepend_bos=False` for text inference so prompts align with normal Hugging Face,
 vLLM, and SGLang serving inputs rather than receiving an implicit analysis-only BOS

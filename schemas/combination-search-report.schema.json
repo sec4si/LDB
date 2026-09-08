@@ -266,7 +266,7 @@
       "type": "string"
     },
     "hook_schema_version": {
-      "default": "ldb.hooks/v1alpha2",
+      "default": "ldb.hooks/v1alpha3",
       "title": "Hook Schema Version",
       "type": "string"
     },

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import torch
@@ -228,3 +229,19 @@ interventions:
         assert not agent.dispatch("patch.list", {})
     finally:
         agent.close()
+
+
+def test_scripted_attach_emits_only_command_json(tmp_path, monkeypatch):
+    calls = []
+
+    class Client:
+        def call(self, method, params=None):
+            calls.append(method)
+            return [{"method": method}]
+
+    monkeypatch.setattr("ldb.cli.AgentGroupClient.connect", lambda *a, **kw: Client())
+    result = CliRunner().invoke(app, ["attach", str(tmp_path), "-e", "status"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == [{"method": "status"}]
+    assert calls == ["hello", "status"]

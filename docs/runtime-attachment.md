@@ -2,6 +2,10 @@
 
 ## Attachment contract
 
+Scripted `ldb attach <target> -e <command>` performs the protocol handshake but
+prints only the command result as JSON. Interactive attachment also prints the
+handshake. This keeps scripted output directly consumable by JSON parsers.
+
 LDB supports two attachment paths. Prepared attachment loads a dormant runtime
 plugin at startup. Linux hot attachment uses `gdb` to load a temporary shared object
 into an already-running CPython worker; its constructor creates a new thread, waits
@@ -43,8 +47,9 @@ model runner
 ```
 
 Every tensor-parallel or pipeline-parallel worker publishes a descriptor in the
-agent directory. `ldb attach <directory>` discovers the live sockets and broadcasts
-commands to every rank. When multiple serving runtimes share the same Unix user and
+agent directory. `ldb attach <directory>` discovers live sockets and routes
+hook-scoped commands to owning ranks; lifecycle and listing commands reach every
+rank. When multiple serving runtimes share the same Unix user and
 agent directory, give each server a stable `LDB_INSTANCE_ID` and select it with
 `ldb attach <directory> --instance <id>`. LDB refuses an ambiguous directory instead
 of risking a command against the wrong model server.
@@ -116,6 +121,14 @@ Patch and breakpoint IDs are immutable while installed. Remove an existing ID
 before reusing it. Reversible multi-rank commands snapshot prior state before
 mutation and restore successful ranks if another rank fails.
 
+For pipeline parallelism, non-local `PPMissingLayer` entries do not advertise hooks.
+Group `arm` clears trace selection on ranks without a local match. Patch/breakpoint
+creation on non-owning ranks returns `{"skipped": true, "reason": "hook_not_local"}`
+in that rank's result slot. Every requested pattern must match at least one attached
+rank. Direct commands reject non-local hooks when a rank has an installed hook
+inventory. IDs are checked across the group before creation, including non-targeted
+ranks; a failure rolls back only ranks changed by the command.
+
 When attaching to an agent directory, LDB performs a live handshake, requires one
 coherent backend/model identity, rejects duplicate ranks, and requires the complete
 `0..world_size-1` rank set before issuing commands. The Unix-socket control plane is
@@ -134,6 +147,12 @@ socket.
 For prepared model runtimes, `arm`, `patch.set`, and `break.set` reject every hook
 glob that matches no installed hook. Use `hooks` before setting controls instead of
 discovering misspellings after a silent no-op.
+
+Decoder pre-hooks bind `hidden_states` by its forward argument name rather than
+assuming the first positional tensor is an activation. The audited Llama/Qwen
+deferred-residual contracts normalize the logical sum of hidden and residual
+branches at decoder boundaries. Their eager-only support and explicit exclusions
+are listed in [decoder activation contracts](compatibility.md#decoder-activation-contracts).
 
 ## Runtime integration
 

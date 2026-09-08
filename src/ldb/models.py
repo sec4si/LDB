@@ -8,7 +8,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-HOOK_SCHEMA_VERSION: Final = "ldb.hooks/v1alpha2"
+HOOK_SCHEMA_VERSION: Final = "ldb.hooks/v1alpha3"
 RUN_SCHEMA_VERSION: Final = "ldb.run/v1alpha1"
 PATCH_SCHEMA_VERSION: Final = "ldb.patch/v1alpha1"
 

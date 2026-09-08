@@ -5,7 +5,7 @@ model_id: google/gemma-3-1b-it
 model_revision: example-revision
 tokenizer_hash: example-tokenizer-hash
 adapter: ldb.adapters.transformers
-hook_schema_version: ldb.hooks/v1alpha2
+hook_schema_version: ldb.hooks/v1alpha3
 interventions:
   - hook: block.17.residual.post
     operation: scale

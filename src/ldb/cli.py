@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import json
 import shlex
 import shutil
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from ldb.identity import resolve_tokenizer_identity
 from ldb.injector import inject_process
 from ldb.models import HookPoint, Intervention, NeuralPatch, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
+from ldb.research_cli import research, weights
 from ldb.runtime import ProbeCallback
 from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features, inspect_sae_tokens
 from ldb.search import (
@@ -41,6 +43,8 @@ from ldb.verification import verify_patch
 app = typer.Typer(no_args_is_help=True, help="Debug latent state in large language models.")
 patch_app = typer.Typer(no_args_is_help=True, help="Validate and manage Neural Patches.")
 app.add_typer(patch_app, name="patch")
+app.add_typer(weights, name="weights")
+app.add_typer(research)
 console = Console()
 
 _ATTACH_HELP = """Commands:
@@ -124,6 +128,60 @@ def runtimes() -> None:
             for backend, versions in sorted(AUDITED_RUNTIME_VERSIONS.items())
         }
     )
+
+
+@app.command("structural-test")
+def structural_test(
+    model: Annotated[str, typer.Argument()] = "sshleifer/tiny-gpt2",
+    device: Annotated[str, typer.Option()] = "cpu",
+    prompt: Annotated[str, typer.Option()] = "The Eiffel Tower is in",
+    layer: Annotated[int, typer.Option(min=0)] = 0,
+    output: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Test reversible GPT-2 weight editing, layer skipping, and layer repetition."""
+    from ldb.structural import structural_experiment
+
+    result = structural_experiment(model, device=device, prompt=prompt, layer=layer)
+    content = json.dumps(result, indent=2)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content + "\n", encoding="utf-8")
+    console.print_json(content)
+
+
+@app.command("debug")
+def debug_layers(
+    model: Annotated[str, typer.Argument()] = "sshleifer/tiny-gpt2",
+    device: Annotated[str, typer.Option()] = "cpu",
+    revision: Annotated[str | None, typer.Option()] = None,
+    prompt: Annotated[str, typer.Option()] = "The Eiffel Tower is in",
+    execute: Annotated[list[str] | None, typer.Option("--execute", "-e")] = None,
+) -> None:
+    """Open an offline GPT-2 layer debugger, with optional scripted commands."""
+    from ldb.adapters.transformers import TransformersAdapter
+    from ldb.stepping import LayerDebugger
+
+    adapter = TransformersAdapter(model, revision=revision, device=device)
+    inputs = adapter.tokenizer(prompt, return_tensors="pt").to(device)
+    debugger = LayerDebugger(adapter.model, inputs, tokenizer=adapter.tokenizer)
+    if execute is not None:
+        for command in execute:
+            console.print_json(data={"command": command, "result": debugger.command(command)})
+        return
+    console.print(
+        "Layer debugger: step, continue, inspect, snapshot, restore, "
+        "patch-head, patch-token, patch-feature, target, compare, scores, quit"
+    )
+    while True:
+        try:
+            command = input("(ldb-layer) ")
+            if command.strip() in {"quit", "exit"}:
+                return
+            console.print_json(data=debugger.command(command))
+        except (EOFError, KeyboardInterrupt):
+            return
+        except (ValueError, KeyError, OSError) as exc:
+            console.print(f"Error: {exc}")
 
 
 @app.command("hot-attach")
@@ -1086,10 +1144,10 @@ def attach(
 
     client = AgentGroupClient.connect(target, instance_id=instance)
     hello = client.call("hello")
-    console.print_json(data=hello)
     if execute is not None:
         _run_agent_command(client, execute)
         return
+    console.print_json(data=hello)
 
     from prompt_toolkit import PromptSession
     from prompt_toolkit.history import InMemoryHistory
