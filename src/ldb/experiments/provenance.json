@@ -1,0 +1,550 @@
+[
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/expert_precision.py",
+    "target": "precision/expert_precision.py",
+    "source_sha256": "f25c15a341032199a307d4f8aff1a2e69ac5dd81113afb9d93c8d7e85cc0da82",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "d11bcd174677c350777812692553a9c2aa1871ace7f4325ad7b2bbc0c912e85f"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/helpers.py",
+    "target": "precision/helpers.py",
+    "source_sha256": "222e27a3605e6857c04e93d796235695439cc9c78fb8b0c8bd2dbc1bc1aafc81",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "69dde265e348ff2f78707dfb40d3d5b9221a34b5a23f1b9e2073eac538b6c06c"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_activation_bank.py",
+    "target": "precision/mxmoe_activation_bank.py",
+    "source_sha256": "9a3db85c9d6827c396d12e342f6e474a6c422ee03debbfde8c15f75611351374",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "f20f31f5275179136c4dbaa8079bed843c86c4b41916d25c75aeefa68686ac80"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_activation_pack.py",
+    "target": "precision/mxmoe_activation_pack.py",
+    "source_sha256": "978dccbd864926f65715b2472d4a7116d89fb0662b073f7239eb54bcacd0e0f5",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "a4f190c5179fa90d7469588dc32f85046e5cac195317a33a475b1ad299aa2faa"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_activation_probe.py",
+    "target": "precision/mxmoe_activation_probe.py",
+    "source_sha256": "5ee205cfb555e8bcae85266dcddac4643685994c21312d0a55dd815334d276da",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "51580a989cdf518d787e68f09fa93cf6deb980016cc1ebe23b5e75ada6ee4384"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_bridge.py",
+    "target": "precision/mxmoe_bridge.py",
+    "source_sha256": "c5eb6dd34afe19a29a67e4589cb8eb4b0650f11365261a2e5cd2932ff140f54e",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "4de533ca21c2a497786f982eb47f5a65200975056bc6387f93783d6f43184180"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_gptq_probe.py",
+    "target": "precision/mxmoe_gptq_probe.py",
+    "source_sha256": "252befe6de1ee20b02532d441634d212ba2e68dfd7e12337175b62aad2e57282",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "211d5859bcb5531db5cd2a58da75bde5554a0006d03644eb447d8fb2b9d6691b"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_linear_bank.py",
+    "target": "precision/mxmoe_linear_bank.py",
+    "source_sha256": "6c3450694f27cc9d82f06406ceedf64f9a53967b0b5aa7fadb3031656e2462b4",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "3f171064d716622792a85cd2a2cbb8adc28c9f26d16296a32f3582a88d7e9f0b"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_model.py",
+    "target": "precision/mxmoe_model.py",
+    "source_sha256": "c54e95fad55c27128ad0096cc1bf09ccda8a9aa6e647d2ed09782cf46ff7c4bb",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "09769e263d3d7fc59db2b92bb96a6ae809e1e2e1276acdf1d92e7630de6d1e1d"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_qwen_build.py",
+    "target": "precision/mxmoe_qwen_build.py",
+    "source_sha256": "beae6cae6d41c5546db0dee2555535e3f2ae3266159c5cbfe0768e11820d61d3",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "6dba9f53987366b26af6fc25c8dc4174fc7279bc701f8f7f00c508644a5fd47b"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_qwen_restore.py",
+    "target": "precision/mxmoe_qwen_restore.py",
+    "source_sha256": "085d93e5cf863294b073f635b83539ac38b7dc57de04bbd04476f99e3b5d3571",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "31db6da49c0e2ecfd87394552d05e9c6a57f08ad359a4bd03249e85106c8d4c6"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_rotation.py",
+    "target": "precision/mxmoe_rotation.py",
+    "source_sha256": "8e1b02257cd0a9e1193d3cc8b1696501616bb9cbaa4899ecaef87cf14c4b5ac6",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "8b5021a6674f38259a684b427b82ef23045999d1d76b13f69cebc1ef7e16f2cc"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/mxmoe_screen.py",
+    "target": "precision/mxmoe_screen.py",
+    "source_sha256": "69286a920fa787f4d0b7f5cace899f9bdb14b91f5c39041aaa63da1e84b04407",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "71d91e575779cbcf854a85a74a806ed100ef7cd8dbf1c55b735c81926b3c10ab"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/precision_baseline.py",
+    "target": "precision/precision_baseline.py",
+    "source_sha256": "82b97126b7b8bfbb745d104024a856f32c0efdca7ab82584ef85745c16dccf6a",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "a1cc2524a331525301e7e178a1584d0a417cdb2595391edfd203393a22cbdd90"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/precision_kernel.py",
+    "target": "precision/precision_kernel.py",
+    "source_sha256": "0ff2a431a5488effbf4c015b5ac42f339a96fd4f7282afb73c91e25bfdd3f701",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "565f6ed44cec38f5b09257a63e4b4e5988ff9a05380554a27e39aebb08324338"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_activation_pack_bench.py",
+    "target": "precision/qwen_activation_pack_bench.py",
+    "source_sha256": "1d41a020c8f65b910b4f3981741ca9c16d5ce373496556ae5d4890f35aa7ff79",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "e57b76b95e6f789d0784f47601549a4c4e28df13fded2a243054fa6c6cb6c606"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_expert_replay.py",
+    "target": "precision/qwen_expert_replay.py",
+    "source_sha256": "af0d7389ca0b4e629173700e5fa98bb1a2a2b688e26be2421628ade0239ecd84",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "85776fce55a0fc5d4cc34b3a2ef3987b89f634b82ef46ed92ec1a1bdac10be6d"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_gptq_build.py",
+    "target": "precision/qwen_gptq_build.py",
+    "source_sha256": "26e9b72b8c9d03427124e15af649627493656af1113c35e2ea54618be1db9ff7",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "690f2961e006e76ed6a38a21f9c952a9db3c0ed0b42cc486d2c62ed33d89d16d"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_gptq_check.py",
+    "target": "precision/qwen_gptq_check.py",
+    "source_sha256": "44900289e7dfd264bc463ad5d52f7c5fd97bd8e7b048869cc68e765646e7db6a",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "98aaef411f35b7747ae1834f43524d0d6b3c637be65eb45305aa0911434be16a"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_gptq_mixed_reuse.py",
+    "target": "precision/qwen_gptq_mixed_reuse.py",
+    "source_sha256": "dcd013211d50f9fc21c63cab7bbc638a443686dd08a34caf8c0845e35cbd6085",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "6fadabe2f4d12dc1f6af341dc98b8851f0eb44765aaf43f30e62b538138ca408"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_linear_loss_plan.py",
+    "target": "precision/qwen_linear_loss_plan.py",
+    "source_sha256": "477e21f3164010cfcae5c60c9eea5fba8eb6f5974f9ca06a2df3af2849cedf9a",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "db076c2fe7ec2a5e815593ac13eeef121d65be2c658101d91c39a5207d712200"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_mixed_loss_plan.py",
+    "target": "precision/qwen_mixed_loss_plan.py",
+    "source_sha256": "8d1e531e412677351d0a93c631b7eee0f05d1d90a8d7f1c6cf7cfe444c9115e1",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "7dda54303f85453debd33522ba5d81f6cf7ef0924b711f1e498c9af82acc5464"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_mixed_loss_profile.py",
+    "target": "precision/qwen_mixed_loss_profile.py",
+    "source_sha256": "06127dfc7ea6ee012d82399b7e1db6ff2212c6ca37840abaceb17aa7729c08f9",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "c2a1eccebd97a3f372a19fd774dadd2a4a5ce42da2fb9a2a0f65623a35f3fde8"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_native_calibration_capture.py",
+    "target": "precision/qwen_native_calibration_capture.py",
+    "source_sha256": "1741939b128f8d91a2c900d0a8f4792ede16179afd711ef48013d1e7dfa89333",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "51cd30a12a3a545b9643cfeffe0de3d3464c42324016b69b57429b7dad4944e9"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_route_capture.py",
+    "target": "precision/qwen_route_capture.py",
+    "source_sha256": "bddc2cda7ca78f0077e6247f21feb3891e221b6ea2ea272b32153dd7e6a0e23d",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "5dabbc3e283cb731f151131a1942df6408255e525ef7f7b757ceca4e1c2784a1"
+  },
+  {
+    "repository": "moe-mixed-precision-research",
+    "commit": "b02d7961dbb1ffeb941f3131fa9f78378abf4dd5",
+    "source": "experiments/engineering_trials/qwen_wikitext_ppl.py",
+    "target": "precision/qwen_wikitext_ppl.py",
+    "source_sha256": "038f7fde76a0be0ff86b8dbaa7bff2130770e510e02b405a9c681bd68b779ee3",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "2426b03dbbb27b3cbc8f3413ff92093a460f01d45b0f897611f9fab00ec50d48"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/__init__.py",
+    "target": "moe_ir/__init__.py",
+    "source_sha256": "4e246312eb2fa55247cfb13d3cbef285ab6ba97356a74244558eb8f31df05a50",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "8da4c1f4490be0e0c1d000703fca9ccd4f231eb60e33fc26927098c6c300f0d7"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/__main__.py",
+    "target": "moe_ir/__main__.py",
+    "source_sha256": "817f7a5b51a7f1e926e91c15042c883a884d933eeddea501e7a4f1732facf6bd",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "5435a63e2261ca18fc7820cd7b60631ac3ef479c4526f1fe3905abfc47677ce8"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/bridge.py",
+    "target": "moe_ir/bridge.py",
+    "source_sha256": "494e07b03c54d322ec4cb74d807d9d5db46f8e31a15c430353c384b8f2dcb5c7",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "9f9435e0f6822e196b3ed8fc0e546164ed57ca0f5334261d3847f750c38c6aff"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/core.py",
+    "target": "moe_ir/core.py",
+    "source_sha256": "74564f57942a33a00301d8985a1e0946418c2eece134df4bdf4f92f592ac4207",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "c594eaa0011764647ba4b9652cf4176328fbd978c6e661b0cccdba1dbeee6fef"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/importer.py",
+    "target": "moe_ir/importer.py",
+    "source_sha256": "d77cedf2a1705ae7c91d1e6d0afd42bea9d9044c0e790c2f1eb056a5f5e82569",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "beffbda25c0b8a39c9d615d9b0d1e33c7022d9ab5b092270a9850d0ce4961c35"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/moe_ir/runtime.py",
+    "target": "moe_ir/runtime.py",
+    "source_sha256": "a83929f3d4a12787336ff0ed8696e59052aa06a3cc7539565fe950891f9cdfad",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "73758dbc59e631712b7940381fd321e7ca17d4c5fe446b681134c6413508bb3b"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/__init__.py",
+    "target": "expert_abi/__init__.py",
+    "source_sha256": "3e7c48074d337f90ad5c60914ac3435dde2006f21210fc7550e9581733ac922a",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "a1484bd4f3e1eeda2925171421cfde0bef451de64c76945f19dd427ccda7d98a"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/capture.py",
+    "target": "expert_abi/capture.py",
+    "source_sha256": "b406f0d502b630164f33cf2bece6b4e5a655fa662abe1b43346862c372915c72",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "53cb849617c7f84be6975350a09c863c8ceae7c23b0a5b9109df48c3c3af3d2b"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/common.py",
+    "target": "expert_abi/common.py",
+    "source_sha256": "344654ecbf4b18ac6812345b94e9a6bf0bb9b302d42a060c122c73eff999bfd4",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "563d249137608d3fee2761b25c4fc0569d844ff583663d5426fb21777e8da99a"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/evaluate.py",
+    "target": "expert_abi/evaluate.py",
+    "source_sha256": "29d6bafd0871a4cc481d16602d23a63ffc267f98fcf2b2e730603b1263addc2e",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "a493f8605ce72a1f0dfc20c58c8771464235ff28d194f7ebe5fc9bad64ef7e7f"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/generation.py",
+    "target": "expert_abi/generation.py",
+    "source_sha256": "45359165c790015dddbdd6249fe0846d5b0e65853b841ce52d23f959fe7de72b",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "3d90924f7561c006b5dd62e3544cbc752636fd8f210f63a6ecbd2935c2b0e01c"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/interfaces.py",
+    "target": "expert_abi/interfaces.py",
+    "source_sha256": "6ddafb4e6aea9c9f0baa9167e273215a3f3687dd53e8859a3c44dee381df94ad",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "137c26ee45ab10eec5f59215932fff561f873eac1d9c87e9c06803b42a9aa453"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/inventory.py",
+    "target": "expert_abi/inventory.py",
+    "source_sha256": "0653bbee787f74a46e9f3a551261341f2e94a41796cba4be1065a30b1774359d",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "04113d765fb8b688634adcf0a5312db5c49d7cfb17820e30c68dc133f7d8f982"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/model.py",
+    "target": "expert_abi/model.py",
+    "source_sha256": "a68f12b324ed031ce0525096ad40f0bc66ea07e2502c6083422c817eba4d15ca",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "dcf30f521ad86979abe831893745bcb07a2211d3fccc4fd76827c7a1ee660402"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/package.py",
+    "target": "expert_abi/package.py",
+    "source_sha256": "77c68164357ea4d13a5c8edc9a474fd94ae5506179c33b58e9bf120753220100",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "08584f65e56b198e349b5314387da8fc61a4ce6c28c79ff8bae78ef5c0732aad"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/__init__.py",
+    "target": "expert_compaction/__init__.py",
+    "source_sha256": "b3579c079b85415ad75f21820609360ce1d8d4536353b5ac9363a50c12042bca",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "b3579c079b85415ad75f21820609360ce1d8d4536353b5ac9363a50c12042bca"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/artifacts.py",
+    "target": "expert_compaction/artifacts.py",
+    "source_sha256": "c8a2568b22db292422a10018e9f0b1bf784319141d82de5e743f0536d2849e11",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "c8a2568b22db292422a10018e9f0b1bf784319141d82de5e743f0536d2849e11"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/compact_model.py",
+    "target": "expert_compaction/compact_model.py",
+    "source_sha256": "26ebf89136af06018ba6664883d3e08588e2a4d420151c83fda57cd10f0b8fbb",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "cfbee9dc318136da698031e2654014def01016fc7aa1a879cbe5a91c48da6575"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/export.py",
+    "target": "expert_compaction/export.py",
+    "source_sha256": "6e21139e2f60e003b9feea739a064d6354ff8c8bcb60909441274da44a66e300",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "657230244252bbae6ad628ec9c9054251a7209fd5b2a176db164de28fc6031ce"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/prompts.py",
+    "target": "expert_compaction/prompts.py",
+    "source_sha256": "2a9fdbe6a6b012c862af120831af8be81a2ac9d71c29b8271347937ea8ea3b9c",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "eff924146ab10ee30a8b17b49b2ea3bd6918f90411e9f4e83174065fcca69fa2"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/run_model.py",
+    "target": "expert_compaction/run_model.py",
+    "source_sha256": "49bd2dfce98196d0de5381a225982a995d89fc416742338d295e8140fa173862",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "b9a48f5dbb81c994c480dac3479d61b5954a008b73c339d4a19f2de090ebde8b"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_compaction/selection.py",
+    "target": "expert_compaction/selection.py",
+    "source_sha256": "58552bdc585824b5b1fec796b80071bcd00421615b23de99ca4f6c2fde612322",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "08dcf6964f2ed969503063d5f4a0558875a72923fb485fb8ec3a949a29400bbd"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/__init__.py",
+    "target": "budget_builder/__init__.py",
+    "source_sha256": "7df54b3a7439cb71e35dc8febda91a6b10eda3033c2135e3fb4dff5bbf982ee9",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "7df54b3a7439cb71e35dc8febda91a6b10eda3033c2135e3fb4dff5bbf982ee9"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/common.py",
+    "target": "budget_builder/common.py",
+    "source_sha256": "63885a4962e5efece3e217bfda2ca54dfbda2b0575b8f01cfac863e1f4f65d3e",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "60345e8f640579058756d0f6d10ec8fed235442a38cf6f14dd415e8b5911c991"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/delivery.py",
+    "target": "budget_builder/delivery.py",
+    "source_sha256": "c8abb4db985fad79336fe216eee246a5ffae60414e090f030f8d7ba8b5acde98",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "676f5823bc5627ecbaa327387b3a6322b81671efff605640702fdf56a6c649bb"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/planner.py",
+    "target": "budget_builder/planner.py",
+    "source_sha256": "432ab3b52f47b9f1f7dcbb5a7d7957de7525a639594ab05f97e859d3444f6fcf",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "1acdcdcc2406688d29bb3797fdc8af0723bce039a848613290eb2d4af3d0739f"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/prompts.py",
+    "target": "budget_builder/prompts.py",
+    "source_sha256": "27fd43fa18828875daa6dccd0351736825e6b19ebd9d0cdffbdf8afcbabcaceb",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "09a8601035dab66fafc601fcd193dd86ed3a08cafff63b4d84f6396ed5f41979"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/resources.py",
+    "target": "budget_builder/resources.py",
+    "source_sha256": "548a81a2d933d188a6e69b1018e1ec662bdc904340cc4ae20245ba240b89fc06",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "279143c60841197a217f94faa746731dfb7e12e01e6491c4f4dc9ca9ac2c3844"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/run.py",
+    "target": "budget_builder/run.py",
+    "source_sha256": "c982b5e54a3a9d3b006822e08445bc5c3e28b1673db9be037ce180ab88e15da7",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "789b006cd56da703a06d971b0c60d4be232133560b2be7f35594563452be0893"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/standalone.py",
+    "target": "budget_builder/standalone.py",
+    "source_sha256": "9230678aa3fabef2b1c4c41c352102f0414261e29c217bd8f999527d1c2f0aa9",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "98a5fa686f5e6bae01530cd5628b8f1db30e220968f06e5c375ff6bc3ab6cb27"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/budget_builder/worker.py",
+    "target": "budget_builder/worker.py",
+    "source_sha256": "44b0736f063210e75a8038810f7c8cb12be38333da029b8b60cf55315780b3eb",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "f991c9df3107034c7129d07ee50a2a3cac6fac551d68d71e01cf8f1c52b3d983"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/cuda_budget_trial/adapter.py",
+    "target": "sharing.py",
+    "source_sha256": "3b31d34bc5e825d98735e2cf774cd390ba6f794ac1059a314223e74f9b07a9e4",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "effa255f2de29424f5c15923a2415782c191cce59a2c8eb86d99bcbe580a3ecb"
+  },
+  {
+    "repository": "expert-fingerprint-research",
+    "commit": "99dbb675d6e23c5a06d3327124f77cfdf7c298ce",
+    "source": "experiments/expert_groups/fingerprint.py",
+    "target": "fingerprint.py",
+    "source_sha256": "063e8274a286ed5f19421179b95e5ac2adb03a5d9e91e3a64ae33691a072bf73",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "063e8274a286ed5f19421179b95e5ac2adb03a5d9e91e3a64ae33691a072bf73"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "scripts/build_budget_model.py",
+    "target": "build_budget_model.py",
+    "source_sha256": "8804694d33ac9057d40e71d683aec4308e6416d160ee48f3710854da18c6e4ff",
+    "note": "Working-tree source; namespace imports adapted. Source hash includes uncommitted research fixes.",
+    "integrated_sha256": "c5b96a1ea8a2fa4487626859937af941ad0248cd02856080b88c2e2080423ac1"
+  },
+  {
+    "repository": "moe-module-research",
+    "commit": "ee86ab10724e5d3a1fa902dc3c383c9d5ff5717c",
+    "source": "experiments/expert_abi/layer_interfaces.py",
+    "target": "expert_abi/layer_interfaces.py",
+    "source_sha256": "a8ae64824743da3331036d709727a08ad336ad5721807fc1b54e72759c1a1317",
+    "integrated_sha256": "c5a3d56cc408e08e216e2f10575c258d423a8798d177e9e7081969ecb90d1ea9"
+  }
+]

@@ -18,6 +18,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+experiments = ["numpy>=1.26", "scipy>=1.12", "torch>=2.6", "transformers>=5.9,<6"]
+
 interpretability = [
   "transformer-lens>=3.8.1,<3.9",
 ]
@@ -61,3 +63,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 packages = ["ldb"]
+
+# Ported experimental adapters retain research typing/style; public CLI stays strict.
+[[tool.mypy.overrides]]
+module = ["ldb.experiments.*"]
+ignore_errors = true
+
+[tool.ruff.lint.per-file-ignores]
+"src/ldb/experiments/**/*.py" = ["E501", "B", "SIM"]

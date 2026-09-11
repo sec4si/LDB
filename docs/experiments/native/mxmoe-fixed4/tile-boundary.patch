@@ -1,0 +1,44 @@
+--- a/hz_fused_2.cu
++++ b/hz_fused_2.cu
+@@ -120,6 +120,8 @@
+             }
+             
+ 
++            wait_cp_async_group<0>();
++            __syncthreads();
+             // advance
+             tile_idx += cta_size;
+         }
+--- a/hz_fused_3.cu
++++ b/hz_fused_3.cu
+@@ -120,6 +120,8 @@
+             }
+             
+ 
++            wait_cp_async_group<0>();
++            __syncthreads();
+             // advance
+             tile_idx += cta_size;
+         }
+--- a/hz_fused_1.cu
++++ b/hz_fused_1.cu
+@@ -120,6 +120,8 @@
+             }
+             
+ 
++            wait_cp_async_group<0>();
++            __syncthreads();
+             // advance
+             tile_idx += cta_size;
+         }
+--- a/hz_fused_0.cu
++++ b/hz_fused_0.cu
+@@ -120,6 +120,8 @@
+             }
+             
+ 
++            wait_cp_async_group<0>();
++            __syncthreads();
+             // advance
+             tile_idx += cta_size;
+         }

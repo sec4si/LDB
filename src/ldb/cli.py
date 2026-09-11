@@ -22,6 +22,7 @@ from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
 from ldb.compatibility import AUDITED_RUNTIME_VERSIONS
 from ldb.diagnosis import DiagnosisReport, diagnose_failure
+from ldb.experiment_cli import experiment
 from ldb.identity import resolve_tokenizer_identity
 from ldb.injector import inject_process
 from ldb.models import HookPoint, Intervention, NeuralPatch, RunManifest, ValidationSummary
@@ -45,6 +46,7 @@ patch_app = typer.Typer(no_args_is_help=True, help="Validate and manage Neural P
 app.add_typer(patch_app, name="patch")
 app.add_typer(weights, name="weights")
 app.add_typer(research)
+app.add_typer(experiment, name="experiment")
 console = Console()
 
 _ATTACH_HELP = """Commands:

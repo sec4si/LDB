@@ -238,3 +238,11 @@ and engineering acceptance tests. Fingerprint algorithms, exploratory studies an
 research results live in the separate [expert-fingerprint-research](https://github.com/LDB-org/expert-fingerprint-research) repository.
 Neither research code nor its dependencies are required to install LDB.
 See [the split record](docs/repository-split.md) for the local layout and provenance.
+
+## MoE experiment tools
+
+Reusable tools from the three LDB research repositories are available under
+`ldb experiment list`: fingerprints and reversible expert interventions, packed
+mixed-precision Qwen workflows, MoE IR and budget planning. Backends remain optional.
+See [the experiment guide](docs/experiments/README.zh-CN.md) for commands, provenance
+and the explicit model/platform boundaries. Research conclusions remain in their original repositories.

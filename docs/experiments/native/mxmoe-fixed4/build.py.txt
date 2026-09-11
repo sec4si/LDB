@@ -1,0 +1,17 @@
+from pathlib import Path
+import shlex,subprocess
+base=Path('/home/Kei/LDB-org/MxMoE-reference')
+build=base/'build-cuda130-clean'
+out=Path('/tmp/ldb-mixed-activation-fixed4-20260911')
+flags=shlex.split((build/'CMakeFiles/gen_lib.dir/flags.make').read_text().split('CUDA_FLAGS = ',1)[1].strip())
+includes=shlex.split((build/'CMakeFiles/gen_lib.dir/includes_CUDA.rsp').read_text())
+includes.insert(0, '-I'+str(out/'include'))
+objects=[]
+for source in sorted((out/'src/generated').glob('*.cu')):
+ obj=out/(source.stem+'.o')
+ subprocess.run(['/home/Kei/.local/share/ldb-cuda130-compiler/nvidia/cu13/bin/nvcc','-DCOMPUTE_ARCH=89','-DFMT_SHARED','-Dgen_lib_EXPORTS',*includes,*flags,'-c',str(source),'-o',str(obj)],check=True)
+ objects.append(str(obj))
+objects.append(str(build/'CMakeFiles/gen_lib.dir/python_bridge.cu.o'))
+libs=shlex.split((build/'CMakeFiles/gen_lib.dir/linkLibs.rsp').read_text())
+subprocess.run(['g++','-fPIC','-shared','-o',str(out/'libgen_lib.so'),*objects,*libs,'-L/home/Kei/.local/share/ldb-cuda130-compiler/nvidia/cu13/lib64'],cwd=build,check=True)
+print(out/'libgen_lib.so')

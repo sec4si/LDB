@@ -1,0 +1,19 @@
+--- a/include/mm_tile.cuh
++++ b/include/mm_tile.cuh
+@@ -499,6 +499,8 @@
+   __device__ __forceinline__ void reduce_slicek(T (&frag)[WARP_FRAG_M * WARP_FRAG_N][TileConfig::FRAG_C_TH],
+                                                 uint8_t* shmem, int lane, int warp_x, int warp_y, int warp_z) {
+     if constexpr (WARP_K > 1) {
++      wait_cp_async_group<0>();
++      __syncthreads();
+       // auto smem = reinterpret_cast<uint4*>(shmem);
+       //     // reduce warp frag along k-dim
+       //       constexpr int WARP_TILE_SIZE = WARP_TILE_M * WARP_TILE_N /
+@@ -604,6 +606,7 @@
+           }
+         }
+       }
++      __syncthreads();
+     }
+   }
+ 

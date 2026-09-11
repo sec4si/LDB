@@ -1,0 +1,24 @@
+{
+  "library_sha256": "cd35a2e22d797a968fc7c218c0317520af95da670d1e9480a9413daba0601ecc",
+  "upstream_revision": "a2b034d276acb1371c3b41954b7c538d4cafa09b",
+  "files": {
+    "build.log": "aea750882bb1d31d447d7cdd5989b37c42abe5aaed35fbe1ab372bec19583cae",
+    "tile-boundary.patch": "8a83c0cfa166454a988c3a1a14b3878744424749d996a211a6e3690d0c52c86c",
+    "build.py": "600d73a02af12ae2cbdc0c223b1a4588af31e3ea476f12e7d3dfff881e15896e",
+    "slicek-barriers.patch": "5944ace1274df87446868bf0ae6c7aa4345c26716f245c87c3fc0e6ae0a73d3e",
+    "include/layout.cuh": "c26797251d65458e63efca130cc235bcb87bd4fc49f6d6e28529c4c5f2a76947",
+    "include/mm_tile.cuh": "faaf2a11b4bfd9ff82d35e9afb739b1b645ba73379e45ac13c95431f27dbe0be",
+    "include/registry.cuh": "8b9dedb3cf3026dce16f92f6955bc8339b35b782732c0d45bd44e761cd6d89b4",
+    "include/tile_scheduler.cuh": "b47bcb70fc7d3702bd7c3d9903fe940d9f3d2b24b87da60b47f0251c304736a9",
+    "include/cuda_utils.cuh": "454e7528b2ddd525773f30c757f8ac0496917d0b3d3cf2bd654a337e34883776",
+    "include/quantize.cuh": "e1790d01e33cacbdc86bed8d0a5c2d055fc38142fc2a98c39d54fbb98e68c66a",
+    "include/cta_gemm.cuh": "9a7bb91b61f14e1fc3e41a5fe162627260b977b502cc18f435fb94c888208e22",
+    "include/helper.h": "c2ce1d54da4c8433778f2d1c700151dadda59df72d8aafc2b76840655b279690",
+    "src/generated/hz_fused_2.cu": "36606cea489f73f2640126faae25c211a90789db868a1414dc4b2daa85c65aa9",
+    "src/generated/hz_fused_decl.cuh": "ab2aca0cf10eb8d0390f32e59561e9dc720dc52c241c530d3a7541cedb5b0b0e",
+    "src/generated/hz_fused_3.cu": "5699024ee1375c03e083dda020d3c664f0d30a58bcecb5cf7b8ad72a3e696a81",
+    "src/generated/hz_fused_1.cu": "8a1b64d8fe4e48debd780bc5a4817520409bd010d55a53682dac427fc1b5cf39",
+    "src/generated/hz_fused_0.cu": "a487f53513076a66a70600276176d82f09e32392f0264e278af1e51eacadb957"
+  },
+  "scope": "Archived corrected generated kernels and header overlay. Build script records local configured CMake build/toolchain paths; requires existing reference build and python_bridge object, not a standalone portable package."
+}
