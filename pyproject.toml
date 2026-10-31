@@ -7,6 +7,8 @@ name = "latent-debugger"
 version = "0.1.0.dev0"
 description = "A runtime debugger and neural patching framework for large language models."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "prompt-toolkit>=3.0.52,<4",

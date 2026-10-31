@@ -221,3 +221,7 @@ python3.11 -m venv .venv
 .venv/bin/python scripts/generate_schemas.py
 .venv/bin/python -m pip wheel --no-deps . -w dist
 ```
+
+## License
+
+LDB is released under the [MIT License](LICENSE).
