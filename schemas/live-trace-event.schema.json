@@ -66,6 +66,19 @@
   },
   "additionalProperties": false,
   "properties": {
+    "batch_requests": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Requests"
+    },
     "hook": {
       "title": "Hook",
       "type": "string"

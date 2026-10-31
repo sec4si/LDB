@@ -103,6 +103,9 @@ class LiveTraceEvent(FrozenModel):
     rank: int = Field(ge=0)
     phase: str | None = None
     request_ids: tuple[str, ...] = ()
+    # Requests sharing this forward batch; 1 means the observation was not batched with
+    # other traffic, which matters because batching can change numerics and MoE routing.
+    batch_requests: int | None = Field(default=None, ge=0)
     summary: TensorSummary
     patched_summary: TensorSummary | None = None
     patch_ids: tuple[str, ...] = ()

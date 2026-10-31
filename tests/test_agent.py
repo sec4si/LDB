@@ -490,6 +490,7 @@ def test_request_scoped_patch_only_changes_selected_tokens(tmp_path: Path) -> No
         assert output.tolist() == [[1.0], [2.0], [30.0]]
         event = client.call("events")[0]
         assert event["request_ids"] == ["request-b"]
+        assert event["batch_requests"] == 2
         assert event["phase"] == "prefill"
         assert event["summary"]["mean"] == 3.0
         assert event["patched_summary"]["mean"] == 30.0

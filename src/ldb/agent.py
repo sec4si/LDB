@@ -505,6 +505,7 @@ class AgentRuntime:
                 rank=self.rank,
                 phase=context.phase if context else None,
                 request_ids=tuple(span.request_id for span in selected_spans),
+                batch_requests=len(context.requests) if context else None,
                 summary=summary,
                 patched_summary=patched_summary,
                 patch_ids=tuple(patch_ids),
