@@ -27,7 +27,7 @@ class BatchContext:
         return tuple(span for span in self.requests if span.request_id in selected)
 
 
-BatchContextProvider: TypeAlias = Callable[[], BatchContext]
+BatchContextProvider: TypeAlias = Callable[[], BatchContext | None]
 BatchContextValue: TypeAlias = BatchContext | BatchContextProvider | None
 
 _CURRENT_BATCH: ContextVar[BatchContextValue] = ContextVar("ldb_batch", default=None)
@@ -66,9 +66,14 @@ def context_from_sglang(forward_batch: Any) -> BatchContext:
     return BatchContext(phase=phase, requests=tuple(spans))
 
 
-def context_from_vllm(runner: Any, scheduler_output: Any) -> BatchContext:
+def context_from_vllm(runner: Any, scheduler_output: Any) -> BatchContext | None:
     """Build token spans after vLLM has finalized its internal InputBatch order."""
 
+    prepared = getattr(runner, "_ldb_input_batch", None)
+    if prepared is not None:
+        return _context_from_input_batch(prepared)
+    if not hasattr(runner, "input_batch"):
+        return None  # the newer runner before prepare_inputs, e.g. dummy or profile runs
     scheduled = scheduler_output.num_scheduled_tokens
     request_ids = tuple(
         str(request_id)
@@ -85,6 +90,21 @@ def context_from_vllm(runner: Any, scheduler_output: Any) -> BatchContext:
     phases = _vllm_phases(runner, request_ids)
     phase = phases.pop() if len(phases) == 1 else "mixed"
     return BatchContext(phase=phase, requests=tuple(spans))
+
+
+def _context_from_input_batch(batch: Any) -> BatchContext:
+    """Spans from vllm.v1.worker.gpu's InputBatch, which records exact token offsets."""
+
+    count = int(batch.num_reqs)
+    ids = batch.req_ids[:count]
+    starts = [int(value) for value in batch.query_start_loc_np[: count + 1]]
+    spans = tuple(
+        RequestSpan(request_id=str(request_id), start=start, end=end)
+        for request_id, start, end in zip(ids, starts[:-1], starts[1:], strict=True)
+    )
+    phases = {"prefill" if bool(flag) else "decode" for flag in batch.is_prefilling_np[:count]}
+    phase = phases.pop() if len(phases) == 1 else "mixed" if phases else "unknown"
+    return BatchContext(phase=phase, requests=spans)
 
 
 def _sglang_phase(mode: Any) -> str:

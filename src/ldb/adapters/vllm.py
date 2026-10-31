@@ -93,18 +93,34 @@ def _wrap_model_runner(module_path: str) -> bool:
 
     @functools.wraps(original)
     def execute_model(runner: Any, scheduler_output: Any, *args: Any, **kwargs: Any) -> Any:
-        # The newer vllm.v1.worker.gpu runner has no InputBatch; traces stay global there.
-        if not hasattr(runner, "input_batch"):
-            return original(runner, scheduler_output, *args, **kwargs)
         token = set_batch_context(lambda: context_from_vllm(runner, scheduler_output))
         try:
             return original(runner, scheduler_output, *args, **kwargs)
         finally:
             reset_batch_context(token)
+            runner.__dict__.pop("_ldb_input_batch", None)
 
     execute_model._ldb_wrapped = True  # type: ignore[attr-defined]
     runner_class.execute_model = execute_model
+    _capture_prepared_inputs(runner_class)
     return True
+
+
+def _capture_prepared_inputs(runner_class: type[Any]) -> None:
+    """The vllm.v1.worker.gpu runner builds its InputBatch as a local inside execute_model."""
+
+    original = getattr(runner_class, "prepare_inputs", None)
+    if original is None or getattr(original, "_ldb_wrapped", False):
+        return
+
+    @functools.wraps(original)
+    def prepare_inputs(runner: Any, *args: Any, **kwargs: Any) -> Any:
+        batch = original(runner, *args, **kwargs)
+        runner._ldb_input_batch = batch
+        return batch
+
+    prepare_inputs._ldb_wrapped = True  # type: ignore[attr-defined]
+    runner_class.prepare_inputs = prepare_inputs
 
 
 def install_running_runtimes(

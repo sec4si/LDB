@@ -208,6 +208,41 @@ def test_vllm_runner_without_input_batch_runs_without_request_context(monkeypatc
     assert observed == [None]
 
 
+def test_vllm_gpu_runner_context_comes_from_prepared_input_batch(monkeypatch) -> None:
+    observed = []
+
+    class GPUModelRunner:
+        def prepare_inputs(self, scheduler_output):
+            return SimpleNamespace(
+                req_ids=["decode-b", "prefill-a", "padding"],
+                num_reqs=2,
+                query_start_loc_np=[0, 1, 6, 6],
+                is_prefilling_np=[False, True, False],
+            )
+
+        def execute_model(self, scheduler_output):
+            self.prepare_inputs(scheduler_output)
+            observed.append(current_batch_context())
+            return "complete"
+
+    monkeypatch.setattr(
+        vllm_adapter.importlib,
+        "import_module",
+        lambda _: SimpleNamespace(GPUModelRunner=GPUModelRunner),
+    )
+    vllm_adapter._wrap_model_runner("fake.gpu.runner")
+    runner = GPUModelRunner()
+
+    assert runner.execute_model(SimpleNamespace()) == "complete"
+    context = observed[0]
+    assert context.phase == "mixed"
+    assert [(s.request_id, s.start, s.end) for s in context.requests] == [
+        ("decode-b", 0, 1),
+        ("prefill-a", 1, 6),
+    ]
+    assert "_ldb_input_batch" not in runner.__dict__
+
+
 def test_hot_vllm_install_discovers_existing_runner(monkeypatch) -> None:
     installed = []
 
