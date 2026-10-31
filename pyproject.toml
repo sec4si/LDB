@@ -10,6 +10,17 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.13"
+authors = [{ name = "ZacharyZcR" }]
+keywords = ["llm", "interpretability", "debugger", "vllm", "sglang", "mixture-of-experts"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Debuggers",
+]
 dependencies = [
   "prompt-toolkit>=3.0.52,<4",
   "pydantic>=2.11,<3",
@@ -37,6 +48,12 @@ dev = [
   "ruff>=0.12,<1",
   "types-PyYAML>=6.0.12,<7",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sec4si/LDB"
+Repository = "https://github.com/sec4si/LDB"
+Issues = "https://github.com/sec4si/LDB/issues"
+Changelog = "https://github.com/sec4si/LDB/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ldb = "ldb.cli:app"

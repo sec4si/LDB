@@ -1,0 +1,23 @@
+name: Bug report
+description: Something in LDB does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Command or code you ran, what you expected, and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: LDB commit or version, Python, PyTorch, runtime (vLLM/SGLang) version, model, GPU, execution mode (eager or CUDA Graph).
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: text
