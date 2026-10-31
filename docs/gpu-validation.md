@@ -73,7 +73,7 @@ parallel topology.
 
 ```console
 gh workflow run "GPU smoke" \
-  --repo LDB-org/LDB \
+  --repo sec4si/LDB \
   -f backend=vllm \
   -f runtime_version=0.28.0 \
   -f model=facebook/opt-125m \

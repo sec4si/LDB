@@ -1,37 +1,44 @@
-# 模型修改能力与训练研究价值
+# Model Editing Capabilities and Training Research Value
 
-LDB 支持推理时干预、机制定位、回归验证，以及新增的永久权重导出、训练梯度追踪
-和可见 PyTorch 算子单步。诊断 CLI 可执行有限 backward/SGD 步骤，但不是完整
-LoRA/SFT 训练器，也没有训练状态检查点恢复。操作见
-[权重、梯度和算子调试](weights-gradients-operators.md)。
-一次激活干预有效仍不等于“模型已经学会了”。
+LDB supports inference-time interventions, mechanism localization, and regression
+verification, plus the newly added permanent weight export, training gradient tracing,
+and stepping through visible PyTorch operators. The diagnostic CLI can run a limited
+number of backward/SGD steps, but it is not a full LoRA/SFT trainer and has no
+training-state checkpoint resume. For usage, see
+[Weights, gradients, and operator debugging](weights-gradients-operators.md).
+An effective activation intervention still does not mean "the model has learned it".
 
-## 当前可以修改什么
+## What can be modified today
 
-| 对象 | 支持的操作 | 入口和适用范围 | 是否永久修改模型 |
+| Target | Supported operations | Entry point and scope | Permanently modifies the model? |
 |---|---|---|---|
-| 层 residual 输出 | 缩放、指定 token 缩放 | GPT-2 逐层 `patch`、`patch-token` | 否，当前会话激活 |
-| attention head | 输出投影前缩放或清零，可指定 token | GPT-2 逐层 `patch-head`；已有离线/在线 head 消融路径 | 否，当前执行激活 |
-| SAE 特征 | 调整指定 feature 的 decoder 贡献，可指定 token | GPT-2 逐层 `patch-feature`；已有 feature intervention API | 否，当前执行激活 |
-| 其他可见 hook 激活 | scale、add、ablate、replace | Neural Patch / 离线干预 API；取决于 adapter 暴露的 hook | 否，推理时补丁 |
-| MoE 路由 | 指定 expert 的 router logit 加偏置 | 已有 routing_bias 干预，在暴露路由 hook 的模型上使用 | 否，当前路由选择的输入 |
-| 可见 expert 输出 | 对可见张量做干预 | 模块可见时可用；不支持穿透 opaque fused-MoE kernel | 否 |
-| 权重张量 | 临时乘以一个有限标量，退出时恢复原值 | 离线 GPT-2 `edit_gpt2(parameter=..., scale=...)` | 否，作用域内临时改动 |
-| 导出模型的权重张量 | scale、add、replace，可指定单轴切片，保留 tied aliases | `ldb weights export`；标准非量化 Transformers 模型 | 是，写入新模型目录；原模型参数数值恢复 |
-| 层执行路径 | 跳过层、使用共享权重重复执行层 | 离线 GPT-2 `edit_gpt2(layer=..., passes=...)` | 否，不增删独立参数 |
+| Layer residual output | Scale, scale at specified tokens | GPT-2 layer debugger `patch`, `patch-token` | No; active for the current session |
+| Attention head | Scale or zero before the output projection, optionally at specified tokens | GPT-2 layer debugger `patch-head`; existing offline/online head ablation paths | No; active for the current execution |
+| SAE feature | Adjust the decoder contribution of a specified feature, optionally at specified tokens | GPT-2 layer debugger `patch-feature`; existing feature intervention API | No; active for the current execution |
+| Other visible hook activations | scale, add, ablate, replace | Neural Patch / offline intervention API; depends on the hooks exposed by the adapter | No; inference-time patch |
+| MoE routing | Add a bias to the router logit of a specified expert | Existing routing_bias intervention, on models that expose routing hooks | No; an input to the current routing selection |
+| Visible expert outputs | Intervene on visible tensors | Available when the module is visible; cannot reach inside an opaque fused-MoE kernel | No |
+| Weight tensors | Temporarily multiply by a finite scalar, restored on exit | Offline GPT-2 `edit_gpt2(parameter=..., scale=...)` | No; temporary change within the scope |
+| Weight tensors of an exported model | scale, add, replace, optionally on a single-axis slice, preserving tied aliases | `ldb weights export`; standard non-quantized Transformers models | Yes, written to a new model directory; the original model's parameter values are restored |
+| Layer execution path | Skip layers, repeat layers with shared weights | Offline GPT-2 `edit_gpt2(layer=..., passes=...)` | No; no independent parameters are added or removed |
 
-新的交互命令仍限定 GPT-2、eval、eager、无 KV cache。已有原生 Transformers、
-TransformerLens、vLLM、SGLang adapter 也不代表任意模型架构都已通过验证。
-在线请求级控制要求能正确获得请求/token 对齐；CUDA Graph 路径只有实验性的全局标量控制。
-详细边界见 [runtime compatibility](compatibility.md)。
+The new interactive commands are still limited to GPT-2, eval, eager, and no KV cache.
+The existing native Transformers, TransformerLens, vLLM, and SGLang adapters do not mean
+that arbitrary model architectures have been validated either.
+Online request-scoped control requires correct request/token alignment; the CUDA Graph
+path only has experimental global scalar control.
+See [runtime compatibility](compatibility.md) for detailed boundaries.
 
-持久保存一个激活检查点或 Neural Patch 文件，只是保存了可复用的调试状态或干预规则，
-并没有把规则合并进权重。永久改权重使用独立的 `weights export` 流程。
-`debug-ops` 可以在 eager dispatcher 可见的算子边界暂停，不能展开融合 kernel
-内部指令。SAE 字典训练、层/专家永久剪枝尚未实现。实验目录已有定制 o_proj LoRA 训练与合并导出，
-但不提供通用 PEFT 模型管理接口；见 [训练价值试验](../../expert-fingerprint-research/docs/training-value-study.md)。
+Persisting an activation checkpoint or a Neural Patch file only saves reusable debugging
+state or intervention rules; it does not merge the rules into the weights. Permanent
+weight changes use the separate `weights export` workflow.
+`debug-ops` can pause at operator boundaries visible to the eager dispatcher, but cannot
+expand the instructions inside a fused kernel. SAE dictionary training and permanent
+layer/expert pruning are not implemented yet. The experiments directory has custom
+o_proj LoRA training with merged export, but no general PEFT model management interface;
+see the training value study (kept in a separate research repository; not published here).
 
-## 新增的交互流程
+## New interactive workflow
 
 ```bash
 source .venv/bin/activate
@@ -55,11 +62,13 @@ restore original
 regress examples/suites/ioi-debugger.yaml "patch-head recipient 8 10 0 -1"
 ```
 
-`compare` 用同一个暂停现场比较基线和候选编辑，结束后恢复现场。
-`regress` 在新 prompt 上从头执行当前编辑集合和候选编辑，按 target、related、regression
-分组报告目标 token 分数和 top-1 正确数量。例子中的 head 清零是研究性消融，不是推荐的修复。
+`compare` compares the baseline and a candidate edit from the same paused state, then
+restores that state.
+`regress` runs the current edit set and the candidate edit from scratch on new prompts,
+and reports target-token scores and top-1 correct counts grouped by target, related, and
+regression. Zeroing the head in this example is a research ablation, not a recommended fix.
 
-token 和 SAE 编辑示例：
+Token and SAE edit examples:
 
 ```text
 patch-token last-residual 8 -1 0.5
@@ -67,62 +76,83 @@ patch-feature feature-test 8 /path/to/layer8-sae.safetensors 12 0.5 -1
 unpatch-edit last-residual
 ```
 
-SAE 文件必须真实存在、符合 LDB 字典格式，且适合所研究的层。给 feature 编号贴语义标签之前，
-需要样本分析与干预证据；代码能加载字典并不意味着该字典具有经过验证的语义。
-具体命令、作用顺序和检查点兼容性见[逐层 Debugger](layer-debugger.md)。
+The SAE file must actually exist, follow the LDB dictionary format, and suit the layer
+under study. Attaching semantic labels to feature indices requires sample analysis and
+intervention evidence; the code being able to load a dictionary does not mean the
+dictionary has validated semantics.
+For exact commands, ordering, and checkpoint compatibility, see
+[Offline layer debugger](layer-debugger.md).
 
-## 对训练有什么价值
+## What value does this have for training
 
-| 训练阶段 | LDB 能提供的证据 | 如何用于训练决策 | 尚需外部训练/评估完成的工作 |
+| Training stage | Evidence LDB can provide | How it informs training decisions | Work still to be done by external training/evaluation |
 |---|---|---|---|
-| 数据准备 | 哪些输入变化导致失败、哪些内部干预改变行为 | 收集相应反例、改写和对照，构建训练集与独立验证集 | 标注、采样策略及实际数据训练 |
-| 微调方案选择 | 不同层/head 的干预敏感性 | 提出冻结层、LoRA 目标模块或局部微调的候选方案 | 在相同数据、步数、预算下与常规方案及随机层对照训练 |
-| 训练过程分析 | 在 checkpoint 上重放 probes；GradientTracer 记录 loss、参数/激活梯度及累积值 | 比较错误出现阶段、定位非有限值、观察特征梯度变化 | 大规模训练编排、分布式汇总、optimizer 状态分析与恢复 |
-| 剪枝与压缩研究 | head 消融、层跳过对行为的影响 | 提出待验证的剪枝候选 | 真正删除参数、必要的恢复训练、速度/显存与质量测量 |
-| 训练后回归 | 目标、相关、无关样本的分数变化 | 检查目标改善是否伴随其他行为退化 | 更广泛的生成评估、任务 benchmark 和部署验收 |
+| Data preparation | Which input changes cause failures, which internal interventions change behavior | Collect matching counterexamples, rewrites, and controls to build a training set and an independent validation set | Labeling, sampling strategy, and actual training on the data |
+| Choosing a fine-tuning approach | Intervention sensitivity of different layers/heads | Propose candidates for frozen layers, LoRA target modules, or local fine-tuning | Controlled training against standard approaches and random layers with the same data, steps, and budget |
+| Analyzing the training process | Replay probes on checkpoints; GradientTracer records loss, parameter/activation gradients, and accumulated values | Compare when errors appear, locate non-finite values, observe changes in feature gradients | Large-scale training orchestration, distributed aggregation, optimizer state analysis and resume |
+| Pruning and compression research | Effect of head ablation and layer skipping on behavior | Propose pruning candidates to be validated | Actually removing parameters, any necessary recovery training, speed/memory and quality measurement |
+| Post-training regression | Score changes on target, related, and unrelated samples | Check whether target improvements come with regressions in other behavior | Broader generation evaluation, task benchmarks, and deployment acceptance |
 
-其中最直接的价值是**把“训练前的猜测”变成可检验的候选假设，并把失败样本沉淀为回归测试**。
-定位结果不直接产生梯度，也不会自动降低训练 loss 或训练成本。
+The most direct value is **turning "pre-training guesses" into testable candidate
+hypotheses, and turning failing samples into regression tests**.
+Localization results do not produce gradients, nor do they automatically reduce training
+loss or training cost.
 
-例如，若某个 head 在指定任务上有明显因果贡献，可以比较：
+For example, if a head has a clear causal contribution on a given task, one can compare:
 
-1. 常规 LoRA 目标模块的训练方案。
-2. 只在候选层的相关模块上训练的方案。
-3. 同等参数量和训练预算的随机层对照。
+1. A training setup with the standard LoRA target modules.
+2. A setup that trains only the relevant modules in the candidate layers.
+3. A random-layer control with the same parameter count and training budget.
 
-三者都使用同一训练集，并在未用于定位、选择或训练的测试集上比较。
-只有目标质量、泛化、回归和实测训练成本一起支持，才能说定位帮助了训练。
-LoRA 的训练对象是权重矩阵的低秩更新，并不是直接训练一个 activation head；
-见 [LoRA 原论文](https://arxiv.org/abs/2106.09685)。
+All three use the same training set and are compared on a test set not used for
+localization, selection, or training.
+Only when target quality, generalization, regression, and measured training cost all
+support it can one say that localization helped training.
+LoRA trains a low-rank update to weight matrices, not an activation head directly;
+see the [original LoRA paper](https://arxiv.org/abs/2106.09685).
 
-研究已经展示过因果定位强度与知识编辑成功位置不一致的情况，不能把“影响最大的位置”
-直接认定为“最适合训练/编辑权重的位置”；见 [Does Localization Inform Editing?](https://arxiv.org/abs/2301.04213)。
+Research has already shown cases where causal localization strength does not match where
+knowledge editing succeeds, so "the location with the largest effect" cannot be directly
+taken as "the best location to train/edit weights"; see [Does Localization Inform Editing?](https://arxiv.org/abs/2301.04213).
 
-## 对本项目现有 GPT-2 结果的解释
+## Interpreting this project's existing GPT-2 results
 
-此前的固定 IOI 实验中，head 8/10 替换在验证集恢复了约 25.7% 的原答案偏好差，
-单独清零后验证集仍全部答对。这说明它有部分因果贡献，不能证明它可以安全删除，
-也不能证明只微调该 head 对应的参数就能学好任务。
+In the earlier fixed IOI experiment, replacing head 8/10 recovered about 25.7% of the
+original answer preference gap on the validation set, while zeroing it alone still left
+every validation answer correct. This shows a partial causal contribution; it does not
+prove the head can be safely removed, nor that fine-tuning only the parameters of that
+head would learn the task well.
 
-此前 GPT-2 IOI 研究把精细编辑和行为对比接入交互 Debugger，未验证训练收益。
-新增梯度入口的训练步骤仅用于验证观察与更新正确性，不作为质量提升证据。
-新增 [Qwen3 训练价值试验](../../expert-fingerprint-research/docs/training-value-study.md) 已完成等参数量三组 LoRA 训练、
-三个种子、永久导出和离线重载核验。定位组没有优于常规组或随机组；本轮没有证明训练收益。
-任务的 clean donor 本身成功率不足，下一轮首先需要在独立 calibration 集建立可靠的
-成功/失败对照，再做因果验证与训练；不能将本轮测试集用于调题后继续声称未见泛化。
+The earlier GPT-2 IOI study brought fine-grained editing and behavior comparison into the
+interactive debugger, but did not validate any training benefit.
+Training steps in the new gradient entry point are only used to verify the correctness of
+observation and updates, and are not evidence of quality improvement.
+The new Qwen3 training value study completed three equal-parameter-count LoRA training groups,
+three seeds, permanent export, and offline reload verification. The localized group did
+not outperform the standard or random groups; this round did not demonstrate a training
+benefit. The task's clean donor itself had an insufficient success rate, so the next round
+first needs to establish a reliable success/failure contrast on an independent calibration
+set, then perform causal validation and training; this round's test set cannot be used for
+tuning and still be claimed as unseen generalization afterwards.
 
-## 本次验证
+## Verification for this change
 
-- 126 项测试通过，包括 head 编辑与直接 hook 的一致性、token/SAE 选择范围、
-  分支恢复、异常清理、编辑历史、旧检查点兼容和字典变更拒绝加载。
-- Ruff、mypy 与检查点 JSON Schema 一致性检查通过。
-- Mac MPS 上使用固定 revision 的真实 GPT-2 执行了 CLI `target`、`compare`、
-  `regress`。示例 John/Mary 的答案 margin 从 2.52737 降至 1.48289，
-  对应 head 8/10 清零；6 个回归样本执行结束后，原会话仍在第 0 层。
-- CLI 原始输出和结构化结果在 `runs/mac-debugger-edits-20260908/`。
-  SAE 编辑的本次验证使用合成字典，不宣称验证了真实语义特征。
+- 126 tests pass, including consistency between head edits and direct hooks, token/SAE
+  selection ranges, branch restore, exception cleanup, edit history, compatibility with
+  old checkpoints, and refusal to load after a dictionary change.
+- Ruff, mypy, and checkpoint JSON Schema consistency checks pass.
+- On Mac MPS, the CLI `target`, `compare`, and `regress` were run against real GPT-2 at
+  a pinned revision. The answer margin of the John/Mary example dropped from 2.52737 to
+  1.48289, corresponding to zeroing head 8/10; after the 6 regression samples finished,
+  the original session was still at layer 0.
+- Raw CLI output and structured results are in `runs/mac-debugger-edits-20260908/`.
+  SAE edit verification in this round used a synthetic dictionary and does not claim to
+  validate real semantic features.
 
-后续 [独立因果验证后的训练实验](../../expert-fingerprint-research/docs/validated-causal-training-study.md) 已在新的 Python 字典任务上
-建立可靠 donor：第 19 层替换将独立验证准确率从 3.91% 提高到 85.94%。
-但等预算局部 o_proj LoRA 仍未通过训练收益门槛。激活输入的有效干预位置与
-应该更新哪些权重，需要分开验证；高分模型是否保留单步查询能力也必须纳入回归。
+The follow-up training experiment after independent causal validation established a reliable
+donor on a new Python dictionary task: replacing layer 19 raised independent validation
+accuracy from 3.91% to 85.94%.
+However, equal-budget local o_proj LoRA still did not pass the training benefit threshold.
+Where an activation-input intervention is effective and which weights should be updated
+need to be validated separately; whether high-scoring models retain single-step query
+ability must also be included in regression.

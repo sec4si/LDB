@@ -199,7 +199,7 @@ synchronous and meant for isolated debugging requests, not normal production tra
 | Model editing and training | [docs/model-editing-and-training.md](docs/model-editing-and-training.md) |
 | Weights, gradients, and operators | [docs/weights-gradients-operators.md](docs/weights-gradients-operators.md) |
 | Technology choices | [docs/technology.md](docs/technology.md) |
-| MoE experiment tools (Chinese) | [docs/experiments/README.zh-CN.md](docs/experiments/README.zh-CN.md) |
+| MoE experiment tools | [docs/experiments/README.md](docs/experiments/README.md) |
 
 `ldb experiment list` shows the bundled MoE experiment tools: expert fingerprints and
 reversible expert interventions, packed mixed-precision workflows, MoE IR, and budget

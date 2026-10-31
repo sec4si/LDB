@@ -1,32 +1,37 @@
-# WSL2 单卡验收记录（2026-09-08）
+# WSL2 single-GPU acceptance record (2026-09-08)
 
-测试环境为 Ubuntu 24.04 / WSL2、RTX 4070 12GB、Windows NVIDIA 驱动
-591.86。项目代码复制到独立目录，每个后端使用独立 Python 3.12 虚拟环境。
-本次验证使用真实 HTTP completion 和 worker 内的 LDB agent。
+Test environment: Ubuntu 24.04 / WSL2, RTX 4070 12GB, Windows NVIDIA driver
+591.86. The project code was copied to a separate directory, and each backend
+used its own Python 3.12 virtual environment. This run used real HTTP
+completions and the LDB agent inside the worker.
 
-模型为 `Qwen/Qwen3-0.6B`，固定 revision
-`c1899de289a04d12100db370d81485cdf75e47ca`。范围为 prepared attachment、
-单卡 eager、未量化权重，关闭前缀缓存；不代表热接入、CUDA Graph、TP/PP/DP
-多卡、其他模型或训练流程通过验收。
+The model is `Qwen/Qwen3-0.6B`, pinned to revision
+`c1899de289a04d12100db370d81485cdf75e47ca`. Scope: prepared attachment,
+single-GPU eager mode, unquantized weights, prefix caching disabled. This does
+not mean that hot attachment, CUDA Graph, TP/PP/DP multi-GPU, other models, or
+training workflows have passed acceptance.
 
 ## vLLM 0.28.0
 
-**通过。** PyTorch `2.13.0+cu130`，FlashAttention 2，V1 model runner，
-PyTorch sampler。对 `block.0.residual.post` 执行全局消融：
+**Passed.** PyTorch `2.13.0+cu130`, FlashAttention 2, V1 model runner,
+PyTorch sampler. Global ablation of `block.0.residual.post`:
 
-| 阶段 | 输出 token | token log probability |
+| Stage | Output token | Token log probability |
 |---|---|---:|
-| 基线 | ` Paris` | -0.8785509467124939 |
-| 消融 | `!` | -11.931214332580566 |
-| 撤销 | ` Paris` | -0.8785509467124939 |
+| Baseline | ` Paris` | -0.8785509467124939 |
+| Ablated | `!` | -11.931214332580566 |
+| Reverted | ` Paris` | -0.8785509467124939 |
 
-拥有该 hook 的 rank 0 产生原始 trace、含 patch ID 的 patched summary，
-撤销后完整 `choices` 与基线一致。此强消融实验验证干预链路，不证明特定层的
-语义专门化或局部知识编辑能力。
+Rank 0, which owns the hook, produced the raw trace and a patched summary
+containing the patch ID; after reverting, the full `choices` matched the
+baseline. This strong ablation validates the intervention path; it does not
+demonstrate semantic specialization of a particular layer or localized
+knowledge editing.
 
-默认 V2 runner 在该 WSL2 环境报 `UVA is not available`。
-V1 runner 默认 FlashInfer sampler 的 JIT 查找不到 CUDA toolkit，故这次明确
-使用 PyTorch sampler。未修改 vLLM 源码。
+The default V2 runner reports `UVA is not available` in this WSL2 environment.
+The V1 runner's default FlashInfer sampler fails to locate the CUDA toolkit
+during JIT, so this run explicitly used the PyTorch sampler. vLLM source was
+not modified.
 
 ```bash
 source .venv-vllm/bin/activate
@@ -38,17 +43,20 @@ python scripts/gpu_smoke.py vllm Qwen/Qwen3-0.6B \
   --revision c1899de289a04d12100db370d81485cdf75e47ca
 ```
 
-`HF_HUB_OFFLINE=1` 要求完整模型已缓存。端口必须空闲。
+`HF_HUB_OFFLINE=1` requires the full model to be cached. The port must be free.
 
 ## SGLang 0.5.19
 
-**通过。** PyTorch `2.13.0+cu130`，Triton attention，PyTorch sampler。
-同一提示词和 hook 的结果为 ` Paris → ! → Paris`，基线与恢复的 token
-log probability 均为 `-0.9114812612533569`，消融为 `-11.931214332580566`。
-rank 0 的 trace、patch ID、patched summary 和完整 `choices` 恢复检查均通过。
-两后端基线 log probability 不相同，本实验没有证明后端间数值等价。
+**Passed.** PyTorch `2.13.0+cu130`, Triton attention, PyTorch sampler.
+With the same prompt and hook the result was ` Paris → ! → Paris`; the baseline
+and restored token log probabilities were both `-0.9114812612533569`, and the
+ablated value was `-11.931214332580566`. The rank 0 trace, patch ID, patched
+summary, and full `choices` restoration checks all passed. The baseline log
+probabilities differ between the two backends; this experiment does not
+demonstrate numerical equivalence across backends.
 
-安装固定版本需允许 SGLang 声明的预发布依赖：
+Installing the pinned version requires allowing the pre-release dependencies
+that SGLang declares:
 
 ```bash
 uv venv --python 3.12 .venv-sglang
@@ -58,10 +66,12 @@ source .venv-sglang/bin/activate
 export CUDA_HOME="$PWD/.venv-sglang/lib/python3.12/site-packages/nvidia/cu13"
 ```
 
-本机使用 pip CUDA toolkit，没有 `/usr/local/cuda`。SGLang 的 JIT 链接器
-要求 `$CUDA_HOME/lib64/libcudart.so`，在该独立环境中添加了两个原先缺失的
-符号链接：`lib64 → lib`、`lib/libcudart.so → libcudart.so.13`。同时激活 venv，
-使已安装的 `ninja` 可从 PATH 找到。未修改系统 CUDA 或 SGLang 源码。
+This machine uses the pip CUDA toolkit and has no `/usr/local/cuda`. SGLang's
+JIT linker requires `$CUDA_HOME/lib64/libcudart.so`, so two previously missing
+symlinks were added in the isolated environment: `lib64 → lib` and
+`lib/libcudart.so → libcudart.so.13`. The venv was also activated so that the
+installed `ninja` could be found on PATH. Neither the system CUDA nor the
+SGLang source was modified.
 
 ```bash
 HF_HUB_OFFLINE=1 python scripts/gpu_smoke.py sglang Qwen/Qwen3-0.6B \
@@ -72,27 +82,33 @@ HF_HUB_OFFLINE=1 python scripts/gpu_smoke.py sglang Qwen/Qwen3-0.6B \
   --revision c1899de289a04d12100db370d81485cdf75e47ca
 ```
 
-## 本次发现并修复的问题
+## Issues found and fixed in this run
 
-- `ldb attach -e` 原先连续输出握手和命令结果两份 JSON，导致验收脚本
-  `json.loads` 报 `Extra data`。现在仍执行握手，但仅交互模式打印握手内容。
-- SGLang 未启用 DP 时 `dp_rank=None`，启动接入和热接入都需归一化为 rank 0。
-  修复覆盖两条路径，保留非零 DP rank。
+- `ldb attach -e` used to print two JSON documents in a row (the handshake and
+  the command result), causing `json.loads` in the acceptance script to fail
+  with `Extra data`. The handshake is still performed, but its content is now
+  printed only in interactive mode.
+- Without DP enabled, SGLang reports `dp_rank=None`; both startup attachment
+  and hot attachment must normalize it to rank 0. The fix covers both paths and
+  preserves non-zero DP ranks.
 
-## 原始证据
+## Raw evidence
 
-本机目录：`runs/wsl-rtx4070-serving-20260908/`。
-远端隔离目录：`/home/Kei/projects/ldb-gpu-acceptance-20260908/`。
-证据包含服务日志、HTTP 响应、trace、patch summary、依赖冻结清单和源码哈希。
-代码有未提交修改，报告中的 `ldb_commit=unknown` 不作为源码版本凭证；以
-`source-manifest.json` 和实际执行文件的哈希为准。
+Raw evidence was archived outside the repository. It includes service logs,
+HTTP responses, traces, patch summaries, dependency freezes, and source hashes.
+The code had uncommitted changes, so `ldb_commit=unknown` in the reports is not
+proof of the source version; `source-manifest.json` and the hashes of the files
+actually executed are authoritative.
 
-两份成功报告位于 `evidence/vllm-qwen3-eager-fixed/result.json` 和
-`evidence/sglang-qwen3-eager-toolkit/result.json`，对应的 `eager-evidence.json`
-记录完整请求结果。失败尝试的日志也已保留。证据压缩包两端 SHA-256 一致：
-`6d0c08c6353e4e84213cc5d5e62c64ea34248cef71e3befc241a00422ac44f84`。
-测试结束后已确认两个测试端口释放，没有遗留测试服务进程。
+The two successful reports are `evidence/vllm-qwen3-eager-fixed/result.json`
+and `evidence/sglang-qwen3-eager-toolkit/result.json`; the corresponding
+`eager-evidence.json` files record the full request results. Logs from failed
+attempts were also kept. The evidence archive SHA-256 matched on both ends:
+`6d0c08c6353e4e84213cc5d5e62c64ea34248cef71e3befc241a00422ac44f84`.
+After testing, both test ports were confirmed released, with no test service
+processes left running.
 
-安装方式参考 [vLLM GPU 安装](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)
-和 [SGLang 安装](https://docs.sglang.io/docs/get-started/install)。本记录的通过结论
-来自上述机器的实际运行证据。
+For installation, see [vLLM GPU installation](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)
+and [SGLang installation](https://docs.sglang.io/docs/get-started/install). The
+pass verdicts in this record are based on evidence from actual runs on the
+machine described above.

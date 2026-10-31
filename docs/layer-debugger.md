@@ -52,11 +52,11 @@ maximum logit difference, and restores the paused activation and patch map.
 Its baseline includes already-active patches. One output-scale patch exists per
 layer; setting it again replaces its value and records undo history.
 
-## 精细编辑与行为对照
+## Fine-grained edits and behavioral comparison
 
-所有层、head、token 索引从 0 开始，负 token 索引从输入序列尾部计数。
-`patch-head`、`patch-feature` 省略最后的 token 参数时作用于所有 token。
-这些操作影响当前 batch 的所有行，不是选择某个 batch row。
+All layer, head, and token indices are zero-based; negative token indices count from the end of the input sequence.
+When the final token argument is omitted, `patch-head` and `patch-feature` apply to all tokens.
+These operations affect every row of the current batch; they do not select a single batch row.
 
 ```console
 ldb debug openai-community/gpt2 --device mps \
@@ -67,29 +67,29 @@ ldb debug openai-community/gpt2 --device mps \
   -e 'regress examples/suites/ioi-debugger.yaml "patch-head recipient 8 10 0 -1"'
 ```
 
-`compare` 的 baseline 包含当前已启用的编辑。命令只接受单个 patch/unpatch 操作，
-执行两条后续路径时忽略断点的停止条件；结束或异常时恢复层位置、激活、编辑和 undo/redo。
-它返回每个 batch row 的答案概率、log probability、logit 差，以及平均差值变化。
-`preference_rate` 是答案胜过指定竞争 token 的比例，不是开放式生成准确率。
-`scores` 必须在最后一层执行完后调用。文本 target 必须分别是单 token，并保持输入分词边界；
-多 token 答案使用已有的 `ldb search` / `ldb patch verify`。
+The `compare` baseline includes edits that are already active. The command accepts only a single patch/unpatch operation
+and ignores breakpoint stop conditions while running the two suffix paths; on completion or error it restores the layer position, activation, edits, and undo/redo.
+It returns, for each batch row, the answer probability, log probability, logit difference, and the mean change in the difference.
+`preference_rate` is the fraction of rows in which the answer beats the specified competing token; it is not open-ended generation accuracy.
+`scores` must be called after the last layer has executed. Each text target must be a single token and preserve the input tokenization boundary;
+for multi-token answers, use the existing `ldb search` / `ldb patch verify`.
 
-命名编辑可以共存，同名操作替换原编辑；`undo`、`redo`、快照和磁盘检查点均保存它们。
-执行顺序固定为：head 编辑（输出投影前）→ 整层 residual 缩放 → token/SAE 编辑。
-同类编辑按插入顺序应用，重叠的编辑可能叠加；SAE 干预通常不满足交换律。
-将 scale 设为 0 表示清零选中激活或移除该 SAE feature 的 decoder 贡献，不表示删除模型参数。
-head 编辑目前拒绝已裁剪的 GPT-2 head 布局。
+Named edits can coexist, and an operation with the same name replaces the existing edit; `undo`, `redo`, snapshots, and disk checkpoints all preserve them.
+The execution order is fixed: head edits (before the output projection) → whole-layer residual scaling → token/SAE edits.
+Edits of the same kind are applied in insertion order, and overlapping edits may compound; SAE interventions are generally not commutative.
+Setting scale to 0 zeroes the selected activations or removes that SAE feature's decoder contribution; it does not delete model parameters.
+Head edits currently reject pruned GPT-2 head layouts.
 
-SAE 编辑复用 LDB 的 feature scaling：保留原激活的重建残差，只调整指定 decoder 方向的贡献。
-这不保证重新编码后该 feature 精确变成目标数值，也不保证其他 feature 不变。
-字典在创建编辑时加载，校验宽度、feature 范围和文件 SHA-256；字典对应哪一层及其语义需研究者验证。
+SAE edits reuse LDB's feature scaling: the reconstruction residual of the original activation is kept, and only the contribution of the specified decoder direction is adjusted.
+This does not guarantee that the feature re-encodes to exactly the target value, nor that other features stay unchanged.
+The dictionary is loaded when the edit is created, with its width, feature range, and file SHA-256 validated; which layer the dictionary corresponds to and its semantics must be verified by the researcher.
 
-`regress` 复用 `ldb.suite/v1alpha1`，当前只接受单个 next-token ID 或恰好一个 token 的
-`target_text`。它从每个新 prompt 的起点重放当前完整编辑集合，比较额外命令前后的结果，
-不复用暂停点之前的旧 prompt 激活。绝对 token 索引按每个新 prompt 解释，越界直接报错。
-输出逐样本分数，以及 target/related/regression 各组的加权平均 log-probability 变化、
-最差变化和 top-1 正确数量。它是实验报告，不自动签发已验证补丁，也不作统计显著性判断。
-示例 suite 只有 6 个样本，不能代表广泛能力回归。原暂停状态、断点和监视设置不会改变。
+`regress` reuses `ldb.suite/v1alpha1` and currently accepts only a single next-token ID or a `target_text`
+of exactly one token. It replays the current full edit set from the start of each fresh prompt and compares results before and after the extra command,
+without reusing old prompt activations from before the pause point. Absolute token indices are interpreted per fresh prompt; out-of-range indices are an error.
+It outputs per-example scores and, for each of the target/related/regression groups, the weighted mean log-probability change,
+the worst change, and the top-1 correct count. It is an experiment report: it does not automatically issue a verified patch or make statistical significance judgments.
+The example suite has only 6 examples and cannot represent broad capability regressions. The original paused state, breakpoints, and watch settings are not changed.
 
 Example scripted session:
 

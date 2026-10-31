@@ -73,7 +73,7 @@ measurement may require a larger machine than the target runtime budget.
 
 Each worker runs in a fresh process, with a timeout, captured output and an explicit
 exit/measurement receipt. Source hashes and the execution sources are checked
-before work. The primary protocol is [here](../../docs/budget-builder-protocol.md).
+before work. The primary protocol is kept in the original research repository and is not published here.
 The reused Qwen exporter/DP implementation is recorded in
 `reused-source-provenance.json`; the original dirty checkout remains untouched.
 
