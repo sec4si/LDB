@@ -19,7 +19,10 @@ class Handle:
 
 
 class Block:
-    def register_forward_pre_hook(self, callback: Any) -> Handle:
+    def forward(self, hidden_states: Any) -> Any:
+        return hidden_states
+
+    def register_forward_pre_hook(self, callback: Any, *, with_kwargs: bool = False) -> Handle:
         self.pre = callback
         return Handle()
 

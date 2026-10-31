@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
-        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev,interpretability]'
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[dev,interpretability,experiments]'
       - name: Lint
         run: ruff check .
       - name: Type check
