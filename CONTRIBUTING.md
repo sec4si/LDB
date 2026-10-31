@@ -37,3 +37,14 @@ do not cover, please attach the generated evidence to an issue.
 
 By contributing, you agree that your contributions are licensed under the
 [MIT License](LICENSE).
+
+## Releasing (maintainers)
+
+1. Set `version` in `pyproject.toml` and move the `Unreleased` entries in
+   `CHANGELOG.md` under that version.
+2. Publish a GitHub release tagged `v<version>`. The `Release` workflow checks that the
+   tag matches the package version, builds the sdist and wheel, and uploads them to
+   PyPI through Trusted Publishing; no API token is stored in the repository.
+
+One-time setup on PyPI: add a trusted publisher for project `latent-debugger` with
+owner `sec4si`, repository `LDB`, workflow `release.yml`, and environment `pypi`.
