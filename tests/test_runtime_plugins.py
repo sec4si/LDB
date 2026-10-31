@@ -189,6 +189,25 @@ def test_vllm_runner_context_is_resolved_inside_execute_model(monkeypatch) -> No
     assert current_batch_context() is None
 
 
+def test_vllm_runner_without_input_batch_runs_without_request_context(monkeypatch) -> None:
+    observed = []
+
+    class GPUModelRunner:
+        def execute_model(self, scheduler_output):
+            observed.append(current_batch_context())
+            return "complete"
+
+    monkeypatch.setattr(
+        vllm_adapter.importlib,
+        "import_module",
+        lambda _: SimpleNamespace(GPUModelRunner=GPUModelRunner),
+    )
+    vllm_adapter._wrap_model_runner("fake.runner")
+
+    assert GPUModelRunner().execute_model(SimpleNamespace(num_scheduled_tokens={})) == "complete"
+    assert observed == [None]
+
+
 def test_hot_vllm_install_discovers_existing_runner(monkeypatch) -> None:
     installed = []
 

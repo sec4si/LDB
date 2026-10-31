@@ -13,6 +13,10 @@ from ldb.serving_hooks import has_deferred_residual, make_input_hook, make_resid
 
 _AGENTS: dict[tuple[str, str, int], AgentRuntime] = {}
 
+# Decoders whose residual stream is not a single hidden tensor (DeepSeek V4.1 mHC):
+# only their fused-MoE routing is observed.
+ROUTING_ONLY_DECODERS = frozenset({"vllm.models.deepseek_v41.nvidia.model.DeepseekV4DecoderLayer"})
+
 
 def _environment_int(name: str, default: int) -> int:
     value = os.environ.get(name)
@@ -117,12 +121,23 @@ def install_model_runtime(
             "sglang.srt.layers.utils.common.PPMissingLayer",
         }
     }
-    deferred = {index: has_deferred_residual(block) for index, block in local_layers.items()}
+    routing_only = {
+        index
+        for index, block in local_layers.items()
+        if f"{type(block).__module__}.{type(block).__name__}" in ROUTING_ONLY_DECODERS
+    }
+    deferred = {
+        index: has_deferred_residual(block)
+        for index, block in local_layers.items()
+        if index not in routing_only
+    }
     graph_control = bool(
         (config or {}).get("graph_control", os.environ.get("LDB_CUDA_GRAPH") == "1")
     )
     if graph_control and any(deferred.values()):
         raise ValueError("Deferred-residual decoder hooks currently require eager execution")
+    if graph_control and routing_only:
+        raise ValueError("Router capture hooks currently require eager execution")
     agent = get_or_create_agent(
         backend=backend,
         backend_version=backend_version,
@@ -133,6 +148,9 @@ def install_model_runtime(
 
     for index, block in local_layers.items():
         prefix = f"{block_path}.{index}"
+        if index in routing_only:
+            _install_router_hooks(agent, module_by_path, prefix, index)
+            continue
         _prepare_graph_hook(agent, f"block.{index}.residual.pre", block)
         pre_hook = f"block.{index}.residual.pre"
         agent.add_handle(
@@ -365,6 +383,65 @@ def _install_expert_hooks(
         hook = f"block.{index}.moe.expert.{expert}.output"
         _prepare_graph_hook(agent, hook, module)
         agent.add_handle(module.register_forward_hook(_make_post_hook(agent, hook)), hook=hook)
+
+
+def _install_router_hooks(
+    agent: AgentRuntime,
+    module_by_path: Mapping[str, Any],
+    prefix: str,
+    index: int,
+) -> None:
+    """Observe fused-MoE routing where no gate module forward is ever called."""
+
+    router = next(
+        (
+            module.router
+            for path, module in module_by_path.items()
+            if path.startswith(f"{prefix}.")
+            and hasattr(getattr(module, "router", None), "_compute_routing")
+        ),
+        None,
+    )
+    if router is None:
+        raise ValueError(f"No fused-MoE router found under {prefix}")
+    ids_hook = f"block.{index}.moe.router.topk_ids"
+    weights_hook = f"block.{index}.moe.router.topk_weights"
+    # noaux_tc adds this bias to the scores used for expert choice only, so a
+    # routing_bias patch on it changes which experts are picked, never their weights.
+    logits_hook = f"block.{index}.moe.router.logits"
+    bias = getattr(router, "e_score_correction_bias", None)
+    original = router._compute_routing
+
+    def compute_routing(*args: Any, **kwargs: Any) -> Any:
+        saved = bias.data if bias is not None else None
+        if bias is not None:
+            bias.data = agent.process_tensor(logits_hook, saved)
+        try:
+            topk_weights, topk_ids = original(*args, **kwargs)
+        finally:
+            if bias is not None:
+                bias.data = saved
+        return (
+            agent.process_tensor(weights_hook, topk_weights),
+            agent.process_tensor(ids_hook, topk_ids),
+        )
+
+    router._compute_routing = compute_routing
+    agent.add_handle(_AttributeRestore(router, "_compute_routing"), hook=ids_hook)
+    agent.register_hook(weights_hook)
+    if bias is not None:
+        agent.register_hook(logits_hook)
+
+
+class _AttributeRestore:
+    """Hook handle that drops an instance-level override."""
+
+    def __init__(self, owner: Any, name: str) -> None:
+        self.owner = owner
+        self.name = name
+
+    def remove(self) -> None:
+        self.owner.__dict__.pop(self.name, None)
 
 
 def _floating_parameter(module: Any) -> Any:

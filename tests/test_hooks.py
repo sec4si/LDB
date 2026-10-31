@@ -270,3 +270,95 @@ def test_installed_runtime_traces_visible_moe_experts(tmp_path: Path) -> None:
         }
     finally:
         close_agents()
+
+
+class FusedRouter(nn.Module):
+    """Mimics vLLM's FusedTopKBiasRouter: the bias only steers expert choice."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.e_score_correction_bias = nn.Parameter(torch.zeros(4), requires_grad=False)
+
+    def _compute_routing(self, hidden_states, router_logits, indices_type=None, *, input_ids=None):
+        scores = router_logits.sigmoid()
+        ids = torch.topk(scores + self.e_score_correction_bias.data, 2).indices
+        return scores.gather(-1, ids), ids.to(torch.int32)
+
+
+class FusedRunner(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.router = FusedRouter()
+
+
+class FusedMoE(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.experts = FusedRunner()
+
+
+class MHCDecoderLayer(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ffn = FusedMoE()
+
+    def forward(self, x, positions, input_ids, residual=None):
+        return x
+
+
+MHCDecoderLayer.__module__ = "vllm.models.deepseek_v41.nvidia.model"
+MHCDecoderLayer.__name__ = "DeepseekV4DecoderLayer"
+
+
+class MHCModel(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.model = nn.Module()
+        self.model.layers = nn.ModuleList([MHCDecoderLayer()])
+
+
+def test_mhc_decoders_expose_routing_hooks_only(tmp_path: Path) -> None:
+    model = MHCModel()
+    router = model.model.layers[0].ffn.experts.router
+    logits = torch.tensor([[1.0, 5.0, 4.0, 0.0]])
+    agent = install_model_runtime(
+        model,
+        backend="test-mhc-hooks",
+        backend_version="1",
+        model_id="test-model",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        assert set(client.call("hooks")) == {
+            "block.0.moe.router.logits",
+            "block.0.moe.router.topk_ids",
+            "block.0.moe.router.topk_weights",
+        }
+        client.call("arm", {"hooks": ["block.0.moe.router.topk_*"], "capture_tensors": False})
+        assert router._compute_routing(None, logits)[1].tolist() == [[1, 2]]
+        assert {event["hook"] for event in client.call("events")} == {
+            "block.0.moe.router.topk_ids",
+            "block.0.moe.router.topk_weights",
+        }
+
+        client.call(
+            "patch.set",
+            {
+                "patch_id": "drop-1",
+                "hook": "block.0.moe.router.logits",
+                "operation": "routing_bias",
+                "value": -1e4,
+                "expert": 1,
+            },
+        )
+        weights, ids = router._compute_routing(None, logits)
+        assert ids.tolist() == [[2, 0]]
+        assert weights[0, 0].item() == pytest.approx(torch.tensor(4.0).sigmoid().item())
+        assert router.e_score_correction_bias.abs().sum().item() == 0
+
+        client.call("patch.remove", {"patch_id": "drop-1"})
+        assert router._compute_routing(None, logits)[1].tolist() == [[1, 2]]
+    finally:
+        close_agents()
+    assert "_compute_routing" not in router.__dict__

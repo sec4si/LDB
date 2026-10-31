@@ -93,6 +93,9 @@ def _wrap_model_runner(module_path: str) -> bool:
 
     @functools.wraps(original)
     def execute_model(runner: Any, scheduler_output: Any, *args: Any, **kwargs: Any) -> Any:
+        # The newer vllm.v1.worker.gpu runner has no InputBatch; traces stay global there.
+        if not hasattr(runner, "input_batch"):
+            return original(runner, scheduler_output, *args, **kwargs)
         token = set_batch_context(lambda: context_from_vllm(runner, scheduler_output))
         try:
             return original(runner, scheduler_output, *args, **kwargs)
