@@ -21,17 +21,25 @@ from ldb.attention import analyze_attention
 from ldb.causal import causal_ablation, causal_propagation_graph, causal_trace
 from ldb.client import AgentGroupClient
 from ldb.compatibility import AUDITED_RUNTIME_VERSIONS
+from ldb.crosscoder import diff_crosscoder
 from ldb.diagnosis import DiagnosisReport, diagnose_failure
 from ldb.experiment_cli import experiment
 from ldb.identity import resolve_tokenizer_identity
 from ldb.injector import inject_process
-from ldb.lens import logit_lens
+from ldb.lens import TunedLens, logit_lens
 from ldb.models import HookPoint, Intervention, NeuralPatch, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
 from ldb.probe import load_examples, train_probes
 from ldb.research_cli import research, weights
 from ldb.runtime import ProbeCallback
-from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features, inspect_sae_tokens
+from ldb.sae import (
+    FeatureReport,
+    SAEDictionary,
+    TranscoderReport,
+    inspect_sae_features,
+    inspect_sae_tokens,
+    transcoder_error,
+)
 from ldb.search import (
     load_candidate_set,
     load_suite,
@@ -376,6 +384,10 @@ def inspect_logit_lens(
     top_k: Annotated[int, typer.Option("--top-k", min=1)] = 5,
     target_token_id: Annotated[int | None, typer.Option("--target-token-id", min=0)] = None,
     layer: Annotated[list[int] | None, typer.Option("--layer", min=0)] = None,
+    tuned_lens: Annotated[
+        Path | None,
+        typer.Option("--tuned-lens", exists=True, dir_okay=False, help="Canonical translators"),
+    ] = None,
     revision: Annotated[str | None, typer.Option("--revision")] = None,
     device: Annotated[str, typer.Option("--device")] = "cpu",
     engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
@@ -390,6 +402,7 @@ def inspect_logit_lens(
         top_k=top_k,
         target_token_id=target_token_id,
         layers=layer,
+        tuned_lens=TunedLens(tuned_lens) if tuned_lens is not None else None,
     )
     _write_report(report, output)
     table = Table("Layer", "Top tokens", "Target p", "Target rank")
@@ -451,6 +464,87 @@ def _write_report(report: Any, output: Path | None) -> None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("transcoder")
+def inspect_transcoder(
+    bundle: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    input_hook: Annotated[str, typer.Option("--input-hook", help="Captured MLP input hook")],
+    output_hook: Annotated[str, typer.Option("--output-hook", help="Captured MLP output hook")],
+    dictionary_path: Annotated[Path, typer.Option("--dictionary", exists=True, dir_okay=False)],
+    top_k: Annotated[int, typer.Option("--top-k", min=1)] = 20,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+) -> None:
+    """Inspect transcoder features and how well they reconstruct the real MLP output."""
+
+    input_event, input_activation = _last_capture(bundle, input_hook)
+    output_event, output_activation = _last_capture(bundle, output_hook)
+    dictionary = SAEDictionary(dictionary_path)
+    report = TranscoderReport(
+        run_id=load_manifest(bundle).run_id,
+        input_hook=input_hook,
+        output_hook=output_hook,
+        input_sequence=input_event.sequence,
+        output_sequence=output_event.sequence,
+        dictionary_hash=dictionary.digest,
+        token_count=int(input_activation.numel() // dictionary.model_width),
+        feature_count=dictionary.feature_count,
+        normalized_mse=transcoder_error(input_activation, output_activation, dictionary),
+        features=inspect_sae_features(input_activation, dictionary, top_k=top_k),
+        tokens=inspect_sae_tokens(input_activation, dictionary, top_k=top_k),
+    )
+    _write_report(report, output)
+    table = Table("Feature", "Peak", "Peak token", "Mean", "Active")
+    for feature in report.features:
+        table.add_row(
+            str(feature.feature),
+            f"{feature.peak:.6g}",
+            str(feature.peak_token),
+            f"{feature.mean:.6g}",
+            f"{feature.active_fraction:.1%}",
+        )
+    console.print(table)
+    console.print(f"Normalized MSE against the real MLP output: {report.normalized_mse:.4g}")
+
+
+def _last_capture(bundle: Path, hook: str) -> tuple[Any, Any]:
+    from safetensors.torch import load_file
+
+    events = [event for event in load_events(bundle) if event.hook == hook and event.tensor_file]
+    if not events:
+        raise ValueError(f"RunBundle has no captured tensor for hook {hook!r}")
+    event = events[-1]
+    assert event.tensor_file is not None
+    return event, load_file(bundle / event.tensor_file)["activation"]
+
+
+@app.command("crosscoder-diff")
+def crosscoder_diff(
+    dictionary_path: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    model_a: Annotated[str, typer.Option("--model-a", help="Label for decoder slot 0")] = "A",
+    model_b: Annotated[str, typer.Option("--model-b", help="Label for decoder slot 1")] = "B",
+    exclusive_threshold: Annotated[float, typer.Option("--exclusive-threshold")] = 0.1,
+    top_k: Annotated[int, typer.Option("--top-k", min=1)] = 20,
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+) -> None:
+    """Diff two models through a crosscoder's per-model decoder norms."""
+
+    report = diff_crosscoder(
+        dictionary_path,
+        model_a=model_a,
+        model_b=model_b,
+        exclusive_threshold=exclusive_threshold,
+        top_k=top_k,
+    )
+    _write_report(report, output)
+    table = Table("Group", "Features")
+    table.add_row(f"{model_a} only", str(report.a_only))
+    table.add_row("Shared", str(report.shared))
+    table.add_row(f"{model_b} only", str(report.b_only))
+    table.add_row("Dead", str(report.dead_features))
+    console.print(table)
+    if report.shared_cosine_mean is not None:
+        console.print(f"Mean decoder cosine of shared features: {report.shared_cosine_mean:.3f}")
 
 
 @app.command("attention")

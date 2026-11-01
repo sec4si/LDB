@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "CrosscoderFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "cosine": {
+          "title": "Cosine",
+          "type": "number"
+        },
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "norm_a": {
+          "minimum": 0.0,
+          "title": "Norm A",
+          "type": "number"
+        },
+        "norm_b": {
+          "minimum": 0.0,
+          "title": "Norm B",
+          "type": "number"
+        },
+        "relative_norm": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Relative Norm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature",
+        "relative_norm",
+        "norm_a",
+        "norm_b",
+        "cosine"
+      ],
+      "title": "CrosscoderFeature",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "a_only": {
+      "minimum": 0,
+      "title": "A Only",
+      "type": "integer"
+    },
+    "b_only": {
+      "minimum": 0,
+      "title": "B Only",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dead_features": {
+      "minimum": 0,
+      "title": "Dead Features",
+      "type": "integer"
+    },
+    "dictionary_hash": {
+      "title": "Dictionary Hash",
+      "type": "string"
+    },
+    "exclusive_threshold": {
+      "title": "Exclusive Threshold",
+      "type": "number"
+    },
+    "feature_count": {
+      "exclusiveMinimum": 0,
+      "title": "Feature Count",
+      "type": "integer"
+    },
+    "model_a": {
+      "title": "Model A",
+      "type": "string"
+    },
+    "model_b": {
+      "title": "Model B",
+      "type": "string"
+    },
+    "relative_norm_histogram": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Relative Norm Histogram",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "ldb.crosscoder-diff/v1alpha1",
+      "default": "ldb.crosscoder-diff/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "shared": {
+      "minimum": 0,
+      "title": "Shared",
+      "type": "integer"
+    },
+    "shared_cosine_mean": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Shared Cosine Mean"
+    },
+    "top_a_only": {
+      "items": {
+        "$ref": "#/$defs/CrosscoderFeature"
+      },
+      "title": "Top A Only",
+      "type": "array"
+    },
+    "top_b_only": {
+      "items": {
+        "$ref": "#/$defs/CrosscoderFeature"
+      },
+      "title": "Top B Only",
+      "type": "array"
+    }
+  },
+  "required": [
+    "dictionary_hash",
+    "model_a",
+    "model_b",
+    "feature_count",
+    "dead_features",
+    "exclusive_threshold",
+    "a_only",
+    "b_only",
+    "shared",
+    "relative_norm_histogram",
+    "shared_cosine_mean",
+    "top_a_only",
+    "top_b_only"
+  ],
+  "title": "CrosscoderDiffReport",
+  "type": "object"
+}

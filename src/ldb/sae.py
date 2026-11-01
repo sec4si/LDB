@@ -1,4 +1,4 @@
-"""Sparse autoencoder dictionary loading and feature inspection."""
+"""Sparse autoencoder and transcoder dictionary loading and feature inspection."""
 
 from __future__ import annotations
 
@@ -44,7 +44,11 @@ class FeatureReport(FrozenModel):
 
 
 class SAEDictionary:
-    """Canonical LDB SAE dictionary backed by safetensors."""
+    """Canonical LDB SAE dictionary backed by safetensors.
+
+    A transcoder uses the same layout: it encodes an MLP input and decodes an MLP output,
+    so it may carry its own ``input_bias`` instead of centering on ``decoder_bias``.
+    """
 
     def __init__(self, path: Path) -> None:
         import torch
@@ -73,7 +77,10 @@ class SAEDictionary:
             raise ValueError("SAE encoder_bias has an invalid shape")
         if self.decoder_bias.shape != (self.encoder.shape[0],):
             raise ValueError("SAE decoder_bias has an invalid shape")
-        self.digest = _sha256_file(path)
+        self.input_bias = tensors.get("input_bias", self.decoder_bias).float()
+        if self.input_bias.shape != (self.encoder.shape[0],):
+            raise ValueError("SAE input_bias has an invalid shape")
+        self.digest = sha256_file(path)
 
     @property
     def model_width(self) -> int:
@@ -94,7 +101,10 @@ class SAEDictionary:
                 f"{self.model_width}"
             )
         values = activation.detach().float().reshape(-1, self.model_width).cpu()
-        return torch.relu((values - self.decoder_bias) @ self.encoder + self.encoder_bias)
+        return torch.relu((values - self.input_bias) @ self.encoder + self.encoder_bias)
+
+    def decode(self, features: Any) -> Any:
+        return features @ self.decoder + self.decoder_bias
 
     def feature(self, index: int) -> SAEFeature:
         if index < 0 or index >= self.feature_count:
@@ -103,7 +113,7 @@ class SAEDictionary:
             encoder=self.encoder[:, index],
             decoder=self.decoder[index],
             encoder_bias=float(self.encoder_bias[index].item()),
-            decoder_bias=self.decoder_bias,
+            input_bias=self.input_bias,
         )
 
 
@@ -114,12 +124,12 @@ class SAEFeature:
         encoder: Any,
         decoder: Any,
         encoder_bias: float,
-        decoder_bias: Any,
+        input_bias: Any,
     ) -> None:
         self.encoder = encoder
         self.decoder = decoder
         self.encoder_bias = encoder_bias
-        self.decoder_bias = decoder_bias
+        self.input_bias = input_bias
         self._cache: dict[tuple[str, str], tuple[Any, Any, Any]] = {}
 
     def scale(self, activation: Any, factor: float) -> Any:
@@ -130,11 +140,11 @@ class SAEFeature:
         if values is None:
             values = tuple(
                 tensor.to(device=activation.device, dtype=activation.dtype)
-                for tensor in (self.encoder, self.decoder, self.decoder_bias)
+                for tensor in (self.encoder, self.decoder, self.input_bias)
             )
             self._cache[key] = values
-        encoder, decoder, decoder_bias = values
-        feature = torch.relu((activation - decoder_bias) @ encoder + self.encoder_bias)
+        encoder, decoder, input_bias = values
+        feature = torch.relu((activation - input_bias) @ encoder + self.encoder_bias)
         return activation + (factor - 1.0) * feature.unsqueeze(-1) * decoder
 
 
@@ -193,7 +203,38 @@ def inspect_sae_tokens(
     return tuple(reports)
 
 
-def _sha256_file(path: Path) -> str:
+class TranscoderReport(FrozenModel):
+    schema_version: Literal["ldb.transcoder/v1alpha1"] = "ldb.transcoder/v1alpha1"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    run_id: str
+    input_hook: str
+    output_hook: str
+    input_sequence: int = Field(ge=0)
+    output_sequence: int = Field(ge=0)
+    dictionary_hash: str
+    token_count: int = Field(ge=0)
+    feature_count: int = Field(gt=0)
+    # Squared reconstruction error over the variance of the real MLP output: how far the
+    # transcoder, a stand-in for the MLP, is from what the MLP actually computed.
+    normalized_mse: float
+    features: tuple[FeatureActivation, ...]
+    tokens: tuple[TokenFeatureReport, ...] = ()
+
+
+def transcoder_error(
+    input_activation: Any, output_activation: Any, dictionary: SAEDictionary
+) -> float:
+    """Normalized MSE of the transcoder's reconstruction of a captured MLP output."""
+
+    reconstruction = dictionary.decode(dictionary.encode(input_activation))
+    target = output_activation.detach().float().reshape(-1, dictionary.model_width).cpu()
+    if reconstruction.shape != target.shape:
+        raise ValueError("Transcoder input and output captures have different token counts")
+    variance = (target - target.mean(0)).square().sum()
+    return float((reconstruction - target).square().sum() / variance.clamp_min(1e-12))
+
+
+def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         while chunk := stream.read(1024 * 1024):

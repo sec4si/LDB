@@ -156,6 +156,26 @@
       },
       "title": "Token Ids",
       "type": "array"
+    },
+    "translated_layers": {
+      "default": [],
+      "items": {
+        "type": "integer"
+      },
+      "title": "Translated Layers",
+      "type": "array"
+    },
+    "tuned_lens_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tuned Lens Hash"
     }
   },
   "required": [

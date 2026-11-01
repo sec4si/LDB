@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from ldb.adapters.transformers import TransformersAdapter, _replace_first_tensor
+from ldb.models import HookPhase
 
 torch = pytest.importorskip("torch")
 
@@ -41,10 +42,11 @@ def test_discovers_gpt2_hook_points() -> None:
 
     hooks = adapter._discover_hooks()
 
-    assert len(hooks) == 12
+    assert len(hooks) == 14
     assert hooks[0].name == "block.0.residual.pre"
-    assert hooks[5].name == "block.0.moe.expert.0.output"
-    assert hooks[6].name == "block.0.moe.expert.1.output"
+    assert (hooks[3].name, hooks[3].phase) == ("block.0.mlp.input", HookPhase.PRE)
+    assert hooks[6].name == "block.0.moe.expert.0.output"
+    assert hooks[7].name == "block.0.moe.expert.1.output"
 
 
 def test_replace_first_tensor_preserves_nested_output() -> None:

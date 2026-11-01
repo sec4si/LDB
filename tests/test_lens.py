@@ -1,12 +1,14 @@
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from ldb.lens import logit_lens
+from ldb.lens import TunedLens, logit_lens
 from ldb.models import HookPhase, HookPoint, TensorAxis
 
 torch = pytest.importorskip("torch")
+save_file = pytest.importorskip("safetensors.torch").save_file
 
 RESIDUAL_AXES = (TensorAxis.BATCH, TensorAxis.TOKEN, TensorAxis.CHANNEL)
 
@@ -90,3 +92,49 @@ def test_logit_lens_skips_the_final_check_away_from_the_last_position() -> None:
 def test_logit_lens_rejects_positions_outside_the_prompt() -> None:
     with pytest.raises(ValueError, match="outside"):
         logit_lens(Runtime(), prompt="hello", position=5)
+
+
+def test_zero_tuned_lens_reproduces_the_logit_lens(tmp_path: Path) -> None:
+    path = tmp_path / "lens.safetensors"
+    save_file(
+        {f"layer.{n}.weight": torch.zeros(3, 3) for n in (0, 1)}
+        | {f"layer.{n}.bias": torch.zeros(3) for n in (0, 1)},
+        path,
+    )
+
+    plain = logit_lens(Runtime(), prompt="hello", target_token_id=2)
+    tuned = logit_lens(Runtime(), prompt="hello", target_token_id=2, tuned_lens=TunedLens(path))
+
+    assert [layer.model_dump() for layer in tuned.layers] == [
+        layer.model_dump() for layer in plain.layers
+    ]
+    assert tuned.translated_layers == (0, 1)
+    assert tuned.tuned_lens_hash is not None
+
+
+def test_tuned_lens_translates_only_its_layers_and_keeps_the_raw_final_check(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "lens.safetensors"
+    save_file(
+        {"layer.1.weight": torch.zeros(3, 3), "layer.1.bias": torch.tensor([10.0, 0, 0])}, path
+    )
+
+    plain = logit_lens(Runtime(), prompt="hello", target_token_id=2)
+    report = logit_lens(Runtime(), prompt="hello", target_token_id=2, tuned_lens=TunedLens(path))
+
+    assert report.translated_layers == (1,)
+    assert report.layers[0] == plain.layers[0]
+    assert plain.layers[1].top_tokens[0].token_id == 2
+    assert report.layers[1].top_tokens[0].token_id == 0
+    assert report.final_layer_matches_model is True
+
+
+def test_tuned_lens_rejects_malformed_translators(tmp_path: Path) -> None:
+    save_file({"layer.0.weight": torch.zeros(2, 3), "layer.0.bias": torch.zeros(2)}, tmp_path / "a")
+    save_file({"translator": torch.zeros(2)}, tmp_path / "b")
+
+    with pytest.raises(ValueError, match="square weight"):
+        TunedLens(tmp_path / "a")
+    with pytest.raises(ValueError, match="Unexpected tensor"):
+        TunedLens(tmp_path / "b")

@@ -25,11 +25,31 @@ be trusted. It is `null` for other positions, where no reference exists.
 
 Limits: middle layers are not trained to be read by the unembedding, so early-layer
 readings can be meaningless, and on some model families the plain logit lens is known to
-be unreliable. A tuned lens is not implemented.
+be unreliable.
 
 The transformers engine supports models whose final norm is `transformer.ln_f`,
 `model.norm`, or `model.model.norm`; the TransformerLens engine uses the bridge's
 `ln_final` and `unembed`.
+
+### Tuned lens
+
+A tuned lens adds a learned affine translator per layer. LDB loads translators trained
+elsewhere from a canonical `safetensors` file; it does not train them.
+
+| Tensor | Shape |
+|---|---|
+| `layer.{N}.weight` | `[model_width, model_width]` |
+| `layer.{N}.bias` | `[model_width]` |
+
+Each translated residual is `h + h @ weight.T + bias`, so all-zero translators reproduce
+the plain logit lens. Layers without a translator are read unchanged.
+
+```console
+ldb logit-lens <model> --prompt "..." --tuned-lens lenses/model.safetensors
+```
+
+The report records the file's SHA-256 (`tuned_lens_hash`) and `translated_layers`. The
+final-layer consistency check always uses the untranslated residual.
 
 ## Linear probes
 

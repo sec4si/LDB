@@ -119,9 +119,10 @@ class TransformersAdapter:
                     ),
                 )
             )
-            for normalized, attributes in (
-                ("attention.output", ("self_attn", "attn")),
-                ("mlp.output", ("mlp",)),
+            for normalized, attributes, phase in (
+                ("attention.output", ("self_attn", "attn"), HookPhase.POST),
+                ("mlp.input", ("mlp",), HookPhase.PRE),
+                ("mlp.output", ("mlp",), HookPhase.POST),
             ):
                 module_path = next(
                     (
@@ -136,7 +137,7 @@ class TransformersAdapter:
                         HookPoint(
                             name=f"block.{index}.{normalized}",
                             module_path=module_path,
-                            phase=HookPhase.POST,
+                            phase=phase,
                         )
                     )
             projection_path = next(

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ldb.attention import AttentionReport
 from ldb.causal import AblationReport, CausalGraphReport, CausalReport
 from ldb.checkpoints import LayerCheckpoint
+from ldb.crosscoder import CrosscoderDiffReport
 from ldb.diagnosis import DiagnosisReport
 from ldb.lens import LogitLensReport
 from ldb.live import (
@@ -26,7 +27,7 @@ from ldb.live import (
 )
 from ldb.models import NeuralPatch, RunManifest, TokenizerIdentity
 from ldb.probe import ProbeExample, ProbeReport
-from ldb.sae import FeatureReport
+from ldb.sae import FeatureReport, TranscoderReport
 from ldb.search import (
     CandidateSet,
     CombinationSearchReport,
@@ -47,6 +48,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "breakpoint-inspection": BreakpointInspection,
     "candidate-set": CandidateSet,
     "causal-graph-report": CausalGraphReport,
+    "crosscoder-diff-report": CrosscoderDiffReport,
     "causal-report": CausalReport,
     "diagnosis-report": DiagnosisReport,
     "evaluation-suite": EvaluationSuite,
@@ -62,6 +64,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "neural-patch": NeuralPatch,
     "run-manifest": RunManifest,
     "search-report": SearchReport,
+    "transcoder-report": TranscoderReport,
     "combination-search-report": CombinationSearchReport,
     "verification-report": VerificationReport,
 }

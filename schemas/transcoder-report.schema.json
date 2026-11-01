@@ -1,0 +1,168 @@
+{
+  "$defs": {
+    "FeatureActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "active_fraction": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Active Fraction",
+          "type": "number"
+        },
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "peak": {
+          "title": "Peak",
+          "type": "number"
+        },
+        "peak_token": {
+          "minimum": 0,
+          "title": "Peak Token",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature",
+        "peak",
+        "peak_token",
+        "mean",
+        "active_fraction"
+      ],
+      "title": "FeatureActivation",
+      "type": "object"
+    },
+    "TokenFeatureActivation": {
+      "additionalProperties": false,
+      "properties": {
+        "feature": {
+          "minimum": 0,
+          "title": "Feature",
+          "type": "integer"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature",
+        "value"
+      ],
+      "title": "TokenFeatureActivation",
+      "type": "object"
+    },
+    "TokenFeatureReport": {
+      "additionalProperties": false,
+      "properties": {
+        "features": {
+          "items": {
+            "$ref": "#/$defs/TokenFeatureActivation"
+          },
+          "title": "Features",
+          "type": "array"
+        },
+        "token": {
+          "minimum": 0,
+          "title": "Token",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "token",
+        "features"
+      ],
+      "title": "TokenFeatureReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dictionary_hash": {
+      "title": "Dictionary Hash",
+      "type": "string"
+    },
+    "feature_count": {
+      "exclusiveMinimum": 0,
+      "title": "Feature Count",
+      "type": "integer"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureActivation"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "input_hook": {
+      "title": "Input Hook",
+      "type": "string"
+    },
+    "input_sequence": {
+      "minimum": 0,
+      "title": "Input Sequence",
+      "type": "integer"
+    },
+    "normalized_mse": {
+      "title": "Normalized Mse",
+      "type": "number"
+    },
+    "output_hook": {
+      "title": "Output Hook",
+      "type": "string"
+    },
+    "output_sequence": {
+      "minimum": 0,
+      "title": "Output Sequence",
+      "type": "integer"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.transcoder/v1alpha1",
+      "default": "ldb.transcoder/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "token_count": {
+      "minimum": 0,
+      "title": "Token Count",
+      "type": "integer"
+    },
+    "tokens": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TokenFeatureReport"
+      },
+      "title": "Tokens",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "input_hook",
+    "output_hook",
+    "input_sequence",
+    "output_sequence",
+    "dictionary_hash",
+    "token_count",
+    "feature_count",
+    "normalized_mse",
+    "features"
+  ],
+  "title": "TranscoderReport",
+  "type": "object"
+}

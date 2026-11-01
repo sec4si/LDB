@@ -5,14 +5,17 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from pydantic import Field
 
 from ldb.models import FrozenModel, HookPoint
 from ldb.runtime import ProbeCallback, ProbeHandle
+from ldb.sae import sha256_file
 
 _RESIDUAL_HOOK = re.compile(r"^block\.(?P<layer>\d+)\.residual\.post$")
+_TRANSLATOR = re.compile(r"^layer\.(?P<layer>\d+)\.(?P<part>weight|bias)$")
 
 
 class LensRuntime(Protocol):
@@ -64,6 +67,8 @@ class LogitLensReport(FrozenModel):
     token_ids: tuple[int, ...]
     position: int
     target_token_id: int | None = None
+    tuned_lens_hash: str | None = None
+    translated_layers: tuple[int, ...] = ()
     layers: tuple[LensLayer, ...]
     # Only defined when reading the last position: the final layer's lens must reproduce
     # the model's own next-token distribution, otherwise the unembedding path is wrong.
@@ -78,8 +83,13 @@ def logit_lens(
     top_k: int = 5,
     target_token_id: int | None = None,
     layers: Sequence[int] | None = None,
+    tuned_lens: TunedLens | None = None,
 ) -> LogitLensReport:
-    """Project every residual.post activation at one position through the unembedding."""
+    """Project every residual.post activation at one position through the unembedding.
+
+    With a tuned lens, each layer's residual first passes through its affine translator.
+    The final-layer consistency check always uses the untranslated residual.
+    """
 
     import torch
 
@@ -118,9 +128,12 @@ def logit_lens(
     final_log_probability = None
     report_layers = []
     for layer in sorted(residuals):
-        log_probabilities = torch.log_softmax(runtime.unembed(residuals[layer]).float(), dim=-1)
+        residual = residuals[layer]
+        readout = tuned_lens.translate(layer, residual) if tuned_lens else residual
+        log_probabilities = torch.log_softmax(runtime.unembed(readout).float(), dim=-1)
         if layer == final_layer:
-            final_log_probability = float(log_probabilities[probe_token])
+            raw = torch.log_softmax(runtime.unembed(residual).float(), dim=-1)
+            final_log_probability = float(raw[probe_token])
         top = torch.topk(log_probabilities, min(top_k, log_probabilities.shape[-1]))
         target_probability = target_rank = None
         if target_token_id is not None:
@@ -146,6 +159,7 @@ def logit_lens(
     matches = None
     if index == len(token_ids) - 1 and final_log_probability is not None:
         matches = abs(final_log_probability - model_log_probability) < 1e-3
+    translated = tuple(sorted(set(tuned_lens.translators) & set(residuals))) if tuned_lens else ()
     return LogitLensReport(
         model_id=runtime.model_id,
         model_revision=runtime.revision,
@@ -155,6 +169,46 @@ def logit_lens(
         token_ids=token_ids,
         position=index,
         target_token_id=target_token_id,
+        tuned_lens_hash=tuned_lens.digest if tuned_lens else None,
+        translated_layers=translated,
         layers=tuple(report_layers),
         final_layer_matches_model=matches,
     )
+
+
+class TunedLens:
+    """Per-layer affine translators in LDB's canonical safetensors layout.
+
+    ``layer.{N}.weight`` ``[width, width]`` and ``layer.{N}.bias`` ``[width]`` map a residual
+    ``h`` to ``h + h @ weight.T + bias`` before the unembedding, so all-zero translators
+    reproduce the plain logit lens. Layers without a translator are read unchanged.
+    """
+
+    def __init__(self, path: Path) -> None:
+        from safetensors.torch import load_file
+
+        parts: dict[int, dict[str, Any]] = {}
+        for name, tensor in load_file(path).items():
+            match = _TRANSLATOR.match(name)
+            if match is None:
+                raise ValueError(f"Unexpected tensor {name!r} in tuned lens")
+            parts.setdefault(int(match.group("layer")), {})[match.group("part")] = tensor.float()
+        for layer, part in parts.items():
+            weight, bias = part.get("weight"), part.get("bias")
+            if (
+                weight is None
+                or bias is None
+                or weight.ndim != 2
+                or weight.shape[0] != weight.shape[1]
+                or bias.shape != (weight.shape[0],)
+            ):
+                raise ValueError(f"Tuned lens layer {layer} needs a square weight and its bias")
+        self.translators = {layer: (part["weight"], part["bias"]) for layer, part in parts.items()}
+        self.digest = sha256_file(path)
+
+    def translate(self, layer: int, residual: Any) -> Any:
+        translator = self.translators.get(layer)
+        if translator is None:
+            return residual
+        weight, bias = (t.to(device=residual.device, dtype=residual.dtype) for t in translator)
+        return residual + residual @ weight.T + bias

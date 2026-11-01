@@ -21,9 +21,12 @@ attribution, and intervention evidence are kept distinct.
   attention heads.
 - Scalar hook summaries for every run, with selective full-tensor capture as `safetensors`
   in portable RunBundles.
-- SAE dictionary loading with global and per-token feature activations.
-- Logit lens over every layer's residual stream, with a final-layer consistency check.
+- SAE dictionary loading with global and per-token feature activations; transcoders in
+  the same layout, scored against the real MLP output.
+- Logit lens over every layer's residual stream, with a final-layer consistency check,
+  and pretrained tuned-lens translators.
 - Linear probes on residual activations, reported against a shuffled-label control.
+- Weight-only model diffing through a pretrained two-model crosscoder.
 
 **Intervene**
 
@@ -167,8 +170,16 @@ For models whose MoE layers never call a separate gate module, LDB hooks the rou
 itself and exposes `block.N.moe.router.topk_ids` and `topk_weights`. Where the router
 uses a selection-only correction bias (DeepSeek `noaux_tc`), `block.N.moe.router.logits`
 accepts `routing_bias` patches that change which experts are picked without changing
-their weights. DeepSeek V4.1 decoder layers, whose residual stream is a multi-stream
-hyper-connection, currently expose routing hooks only. This path requires eager execution.
+their weights. This path requires eager execution.
+
+DeepSeek V4.1 decoder layers carry a multi-stream hyper-connection (mHC) residual, so LDB
+does not hook their residual directly. Instead, `block.N.residual.post` for layers
+`0..L-2` is read through the next layer's own aux capture, which returns the mean over the
+hyper-connection streams; arming the hook requests that capture for the call. These hooks
+are observe-only: patches are rejected. The final layer's output is not exposed, and the
+hooks are absent when sequence parallelism shards the stream. Requesting the capture
+disables the decoder's deep_gemm mega-mHC kernel for that call, so on hardware that uses
+it, observed runs may differ numerically from unobserved ones.
 
 ### Security
 
@@ -193,12 +204,13 @@ synchronous and meant for isolated debugging requests, not normal production tra
 | Runtime compatibility | [docs/compatibility.md](docs/compatibility.md) |
 | GPU acceptance harness | [docs/gpu-validation.md](docs/gpu-validation.md) |
 | TransformerLens integration | [docs/transformer-lens.md](docs/transformer-lens.md) |
-| Logit lens and linear probes | [docs/logit-lens-and-probes.md](docs/logit-lens-and-probes.md) |
+| Logit lens, tuned lens, and linear probes | [docs/logit-lens-and-probes.md](docs/logit-lens-and-probes.md) |
 | Patch search | [docs/patch-search.md](docs/patch-search.md) |
 | Automatic diagnosis | [docs/automatic-diagnosis.md](docs/automatic-diagnosis.md) |
 | Causal ablation | [docs/causal-ablation.md](docs/causal-ablation.md) |
 | Causal propagation graphs | [docs/causal-graph.md](docs/causal-graph.md) |
-| SAE dictionaries | [docs/sae-dictionaries.md](docs/sae-dictionaries.md) |
+| SAE dictionaries and transcoders | [docs/sae-dictionaries.md](docs/sae-dictionaries.md) |
+| Crosscoder model diffing | [docs/crosscoders.md](docs/crosscoders.md) |
 | Offline layer debugger | [docs/layer-debugger.md](docs/layer-debugger.md) |
 | Model editing and training | [docs/model-editing-and-training.md](docs/model-editing-and-training.md) |
 | Weights, gradients, and operators | [docs/weights-gradients-operators.md](docs/weights-gradients-operators.md) |
@@ -212,7 +224,8 @@ planning. Their backends are optional dependencies.
 ## Status
 
 LDB is in its initial implementation phase. Scheduler-isolated single-request
-breakpoints are not implemented yet, and CUDA Graph support is experimental.
+breakpoints are not implemented yet, and CUDA Graph support is experimental; see the
+[roadmap](docs/roadmap.md) for known gaps.
 
 ## Development
 
