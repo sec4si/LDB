@@ -298,12 +298,18 @@ class FusedMoE(nn.Module):
 
 
 class MHCDecoderLayer(nn.Module):
-    def __init__(self) -> None:
+    """Mirrors DeepseekV4DecoderLayer: the previous layer's mean stream comes back last."""
+
+    def __init__(self, *, sequence_parallel: bool = False) -> None:
         super().__init__()
         self.ffn = FusedMoE()
+        self.use_sequence_parallel = sequence_parallel
+        self.capture_requests: list[bool] = []
 
-    def forward(self, x, positions, input_ids, residual=None):
-        return x
+    def forward(self, x, positions, input_ids, residual=None, *, capture_previous_aux=False):
+        self.capture_requests.append(capture_previous_aux)
+        aux = x * 2 if capture_previous_aux else None
+        return x, x, x, x, x, aux
 
 
 MHCDecoderLayer.__module__ = "vllm.models.deepseek_v41.nvidia.model"
@@ -311,10 +317,12 @@ MHCDecoderLayer.__name__ = "DeepseekV4DecoderLayer"
 
 
 class MHCModel(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, layers: int = 1, *, sequence_parallel: bool = False) -> None:
         super().__init__()
         self.model = nn.Module()
-        self.model.layers = nn.ModuleList([MHCDecoderLayer()])
+        self.model.layers = nn.ModuleList(
+            [MHCDecoderLayer(sequence_parallel=sequence_parallel) for _ in range(layers)]
+        )
 
 
 def test_mhc_decoders_expose_routing_hooks_only(tmp_path: Path) -> None:
@@ -362,3 +370,61 @@ def test_mhc_decoders_expose_routing_hooks_only(tmp_path: Path) -> None:
     finally:
         close_agents()
     assert "_compute_routing" not in router.__dict__
+
+
+def test_mhc_residual_is_read_through_the_next_layers_aux_capture(tmp_path: Path) -> None:
+    model = MHCModel(layers=2)
+    layer = model.model.layers[1]
+    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    agent = install_model_runtime(
+        model,
+        backend="test-mhc-residual",
+        backend_version="1",
+        model_id="test-model",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        client = AgentClient(agent.socket_path)
+        hooks = set(client.call("hooks"))
+        assert "block.0.residual.post" in hooks
+        assert not any(hook.startswith("block.1.residual") for hook in hooks)
+
+        assert layer(x, None, None)[-1] is None
+        assert layer.capture_requests == [False]
+
+        client.call("arm", {"hooks": ["block.0.residual.post"], "capture_tensors": False})
+        assert layer(x, None, None)[-1] is None
+        assert layer.capture_requests[-1] is True
+        event = client.call("events")[0]
+        assert event["hook"] == "block.0.residual.post"
+        assert event["summary"]["mean"] == pytest.approx(5.0)
+
+        requested = layer(x, None, None, capture_previous_aux=True)[-1]
+        assert torch.equal(requested, x * 2)
+
+        with pytest.raises(RuntimeError, match="Observe-only"):
+            client.call(
+                "patch.set",
+                {
+                    "patch_id": "scale",
+                    "hook": "block.0.residual.post",
+                    "operation": "scale",
+                    "value": 2.0,
+                },
+            )
+    finally:
+        close_agents()
+
+
+def test_mhc_residual_is_not_exposed_for_sequence_parallel_shards(tmp_path: Path) -> None:
+    agent = install_model_runtime(
+        MHCModel(layers=2, sequence_parallel=True),
+        backend="test-mhc-sp",
+        backend_version="1",
+        model_id="test-model",
+        config={"socket_dir": tmp_path / "agents", "output_dir": tmp_path / "runs"},
+    )
+    try:
+        assert "block.0.residual.post" not in set(AgentClient(agent.socket_path).call("hooks"))
+    finally:
+        close_agents()

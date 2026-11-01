@@ -128,6 +128,7 @@ class AgentRuntime:
         self._thread: threading.Thread | None = None
         self._handles: list[Any] = []
         self._hook_names: set[str] = set()
+        self._observe_only: set[str] = set()
         self._run_id = uuid.uuid4().hex
         self._started_at = datetime.now(UTC)
 
@@ -214,9 +215,11 @@ class AgentRuntime:
         if hook is not None:
             self.register_hook(hook)
 
-    def register_hook(self, hook: str) -> None:
+    def register_hook(self, hook: str, *, observe_only: bool = False) -> None:
         with self._lock:
             self._hook_names.add(hook)
+            if observe_only:
+                self._observe_only.add(hook)
 
     def prepare_graph_hook(self, hook: str, reference: Any) -> None:
         if not self.graph_control:
@@ -287,6 +290,7 @@ class AgentRuntime:
         if method == "patch.set":
             patch = LiveIntervention.model_validate(params)
             self._require_matching_hooks((patch.hook,))
+            self._require_patchable(patch.hook)
             if patch.request_ids and not self.request_context:
                 raise ValueError("This runtime does not provide authoritative request context")
             if patch.request_ids:
@@ -385,6 +389,12 @@ class AgentRuntime:
         ]
         if missing:
             raise ValueError(f"Hook pattern matches no installed hooks: {', '.join(missing)}")
+
+    def _require_patchable(self, pattern: str) -> None:
+        with self._lock:
+            blocked = sorted(h for h in self._observe_only if fnmatch.fnmatchcase(h, pattern))
+        if blocked:
+            raise ValueError("Observe-only hooks cannot be patched: " + ", ".join(blocked))
 
     def _require_request_addressable(self, patterns: tuple[str, ...]) -> None:
         with self._lock:

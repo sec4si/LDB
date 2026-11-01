@@ -150,6 +150,7 @@ def install_model_runtime(
         prefix = f"{block_path}.{index}"
         if index in routing_only:
             _install_router_hooks(agent, module_by_path, prefix, index)
+            _install_mhc_residual_hook(agent, block, index)
             continue
         _prepare_graph_hook(agent, f"block.{index}.residual.pre", block)
         pre_hook = f"block.{index}.residual.pre"
@@ -431,6 +432,39 @@ def _install_router_hooks(
     agent.register_hook(weights_hook)
     if bias is not None:
         agent.register_hook(logits_hook)
+
+
+def _install_mhc_residual_hook(agent: AgentRuntime, block: Any, index: int) -> None:
+    """Read the previous layer's output through the decoder's own aux capture.
+
+    DeepSeek V4.1 folds each layer's mHC post into the next layer's fused pre, which can
+    also return the mean over hyper-connection streams as its last output. Arming the hook
+    requests that capture for the call; the stream is observe-only.
+    """
+
+    if index == 0 or getattr(block, "use_sequence_parallel", False):
+        return  # no previous layer, or a per-rank sequence-parallel shard
+    hook = f"block.{index - 1}.residual.post"
+    forced = False
+
+    def pre_hook(_: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        nonlocal forced
+        forced = agent.needs_hook(hook) and not kwargs.get("capture_previous_aux", False)
+        return args, ({**kwargs, "capture_previous_aux": True} if forced else kwargs)
+
+    def post_hook(_: Any, __: tuple[Any, ...], output: Any) -> Any:
+        nonlocal forced
+        aux = output[-1]
+        if aux is not None and aux.shape[0]:
+            agent.process_tensor(hook, aux)
+        if not forced:
+            return None
+        forced = False
+        return (*output[:-1], None)
+
+    agent.add_handle(block.register_forward_pre_hook(pre_hook, with_kwargs=True))
+    agent.add_handle(block.register_forward_hook(post_hook))
+    agent.register_hook(hook, observe_only=True)
 
 
 class _AttributeRestore:
