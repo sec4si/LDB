@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "LensLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "layer": {
+          "minimum": 0,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "target_probability": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Probability"
+        },
+        "target_rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Rank"
+        },
+        "top_tokens": {
+          "items": {
+            "$ref": "#/$defs/LensToken"
+          },
+          "title": "Top Tokens",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layer",
+        "top_tokens"
+      ],
+      "title": "LensLayer",
+      "type": "object"
+    },
+    "LensToken": {
+      "additionalProperties": false,
+      "properties": {
+        "probability": {
+          "title": "Probability",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "token_id": {
+          "minimum": 0,
+          "title": "Token Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "token_id",
+        "text",
+        "probability"
+      ],
+      "title": "LensToken",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "final_layer_matches_model": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Final Layer Matches Model"
+    },
+    "layers": {
+      "items": {
+        "$ref": "#/$defs/LensLayer"
+      },
+      "title": "Layers",
+      "type": "array"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "position": {
+      "title": "Position",
+      "type": "integer"
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.logit-lens/v1alpha1",
+      "default": "ldb.logit-lens/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_token_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Token Id"
+    },
+    "token_ids": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Token Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "prompt",
+    "token_ids",
+    "position",
+    "layers"
+  ],
+  "title": "LogitLensReport",
+  "type": "object"
+}

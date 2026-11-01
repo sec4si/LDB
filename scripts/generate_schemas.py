@@ -11,6 +11,7 @@ from ldb.attention import AttentionReport
 from ldb.causal import AblationReport, CausalGraphReport, CausalReport
 from ldb.checkpoints import LayerCheckpoint
 from ldb.diagnosis import DiagnosisReport
+from ldb.lens import LogitLensReport
 from ldb.live import (
     AgentDescriptor,
     AgentRequest,
@@ -24,6 +25,7 @@ from ldb.live import (
     LiveTraceEvent,
 )
 from ldb.models import NeuralPatch, RunManifest, TokenizerIdentity
+from ldb.probe import ProbeExample, ProbeReport
 from ldb.sae import FeatureReport
 from ldb.search import (
     CandidateSet,
@@ -49,6 +51,9 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "diagnosis-report": DiagnosisReport,
     "evaluation-suite": EvaluationSuite,
     "feature-report": FeatureReport,
+    "logit-lens-report": LogitLensReport,
+    "probe-example": ProbeExample,
+    "probe-report": ProbeReport,
     "gpu-smoke-report": GpuSmokeReport,
     "live-breakpoint": LiveBreakpoint,
     "live-intervention": LiveIntervention,

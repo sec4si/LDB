@@ -25,8 +25,10 @@ from ldb.diagnosis import DiagnosisReport, diagnose_failure
 from ldb.experiment_cli import experiment
 from ldb.identity import resolve_tokenizer_identity
 from ldb.injector import inject_process
+from ldb.lens import logit_lens
 from ldb.models import HookPoint, Intervention, NeuralPatch, RunManifest, ValidationSummary
 from ldb.patches import load_patch, write_patch
+from ldb.probe import load_examples, train_probes
 from ldb.research_cli import research, weights
 from ldb.runtime import ProbeCallback
 from ldb.sae import FeatureReport, SAEDictionary, inspect_sae_features, inspect_sae_tokens
@@ -362,6 +364,92 @@ def inspect_features(
         )
     console.print(table)
     if output is not None:
+        console.print(f"Report: [bold]{output}[/bold]")
+
+
+@app.command("logit-lens")
+def inspect_logit_lens(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    prompt: Annotated[str, typer.Option("--prompt")],
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    position: Annotated[int, typer.Option("--position", help="Token position, -1 = last")] = -1,
+    top_k: Annotated[int, typer.Option("--top-k", min=1)] = 5,
+    target_token_id: Annotated[int | None, typer.Option("--target-token-id", min=0)] = None,
+    layer: Annotated[list[int] | None, typer.Option("--layer", min=0)] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
+) -> None:
+    """Show what every layer would predict if decoding stopped there."""
+
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
+    report = logit_lens(
+        adapter,
+        prompt=prompt,
+        position=position,
+        top_k=top_k,
+        target_token_id=target_token_id,
+        layers=layer,
+    )
+    _write_report(report, output)
+    table = Table("Layer", "Top tokens", "Target p", "Target rank")
+    for row in report.layers:
+        table.add_row(
+            str(row.layer),
+            ", ".join(f"{token.text!r} {token.probability:.3g}" for token in row.top_tokens),
+            _optional_float(row.target_probability),
+            str(row.target_rank) if row.target_rank is not None else "-",
+        )
+    console.print(table)
+    if report.final_layer_matches_model is False:
+        console.print("[red]Final-layer lens does not reproduce the model output.[/red]")
+
+
+@app.command("probe")
+def run_probes(
+    model: Annotated[str, typer.Argument(help="Hugging Face model identifier")],
+    dataset: Annotated[Path, typer.Option("--dataset", help='JSONL of {"text", "label"}')],
+    output: Annotated[Path | None, typer.Option("--output", help="Write JSON report")] = None,
+    layer: Annotated[list[int] | None, typer.Option("--layer", min=0)] = None,
+    position: Annotated[str, typer.Option("--position", help="last or mean")] = "last",
+    test_fraction: Annotated[float, typer.Option("--test-fraction", min=0.05, max=0.95)] = 0.3,
+    controls: Annotated[int, typer.Option("--controls", min=1)] = 5,
+    seed: Annotated[int, typer.Option("--seed")] = 0,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+    engine: Annotated[OfflineEngine, typer.Option("--engine")] = OfflineEngine.TRANSFORMER_LENS,
+) -> None:
+    """Fit linear probes per layer and compare them with a shuffled-label control."""
+
+    if position not in ("last", "mean"):
+        raise typer.BadParameter("--position must be 'last' or 'mean'")
+    adapter = _load_offline_adapter(engine, model, revision=revision, device=device)
+    report = train_probes(
+        adapter,
+        load_examples(dataset),
+        layers=layer,
+        position="last" if position == "last" else "mean",
+        test_fraction=test_fraction,
+        controls=controls,
+        seed=seed,
+    )
+    _write_report(report, output)
+    table = Table("Layer", "Accuracy", "Control", "Selectivity")
+    for row in report.layers:
+        table.add_row(
+            str(row.layer),
+            f"{row.accuracy:.3f}",
+            f"{row.control_accuracy:.3f}",
+            f"{row.selectivity:+.3f}",
+        )
+    console.print(table)
+    console.print(f"Majority-class baseline: {report.majority_baseline:.3f}")
+
+
+def _write_report(report: Any, output: Path | None) -> None:
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
         console.print(f"Report: [bold]{output}[/bold]")
 
 

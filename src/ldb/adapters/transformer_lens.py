@@ -228,6 +228,17 @@ class TransformerLensAdapter:
         )
         return tuple(int(token) for token in tokens[0])
 
+    def unembed(self, residual: Any) -> Any:
+        """Apply the final norm and unembedding to a residual-stream tensor."""
+
+        import torch
+
+        with torch.inference_mode():
+            return self.model.unembed(self.model.ln_final(residual))
+
+    def decode(self, token_id: int) -> str:
+        return str(self.tokenizer.decode([token_id]))
+
     def generate(self, prompt: str, *, max_new_tokens: int) -> str:
         output = self.model.generate(
             prompt,

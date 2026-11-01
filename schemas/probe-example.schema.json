@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text",
+    "label"
+  ],
+  "title": "ProbeExample",
+  "type": "object"
+}

@@ -48,6 +48,9 @@ def _replace_first_tensor(value: Any, replacement: Any) -> tuple[Any, bool]:
     return value, False
 
 
+_FINAL_NORMS = ("transformer.ln_f", "model.norm", "model.model.norm")
+
+
 class TransformersAdapter:
     """Normalize common decoder-only Hugging Face model topologies."""
 
@@ -225,6 +228,24 @@ class TransformersAdapter:
     def tokenize(self, prompt: str) -> Sequence[int]:
         encoded = self.tokenizer(prompt, return_tensors="pt")
         return tuple(int(token) for token in encoded["input_ids"][0])
+
+    def unembed(self, residual: Any) -> Any:
+        """Apply the final norm and output projection to a residual-stream tensor."""
+
+        import torch
+
+        norm_path = next((path for path in _FINAL_NORMS if path in self._module_by_path), None)
+        if norm_path is None:
+            raise ValueError(
+                "Unsupported model topology: expected transformer.ln_f, model.norm, "
+                "or model.model.norm"
+            )
+        with torch.inference_mode():
+            hidden = self._module_by_path[norm_path](residual.to(self.device))
+            return self.model.get_output_embeddings()(hidden)
+
+    def decode(self, token_id: int) -> str:
+        return str(self.tokenizer.decode([token_id]))
 
     def generate(self, prompt: str, *, max_new_tokens: int) -> str:
         import torch

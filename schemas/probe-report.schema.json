@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "ProbeLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "accuracy": {
+          "title": "Accuracy",
+          "type": "number"
+        },
+        "control_accuracy": {
+          "title": "Control Accuracy",
+          "type": "number"
+        },
+        "layer": {
+          "minimum": 0,
+          "title": "Layer",
+          "type": "integer"
+        },
+        "selectivity": {
+          "title": "Selectivity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "layer",
+        "accuracy",
+        "control_accuracy",
+        "selectivity"
+      ],
+      "title": "ProbeLayer",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "controls": {
+      "minimum": 1,
+      "title": "Controls",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "labels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Labels",
+      "type": "array"
+    },
+    "layers": {
+      "items": {
+        "$ref": "#/$defs/ProbeLayer"
+      },
+      "title": "Layers",
+      "type": "array"
+    },
+    "majority_baseline": {
+      "title": "Majority Baseline",
+      "type": "number"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Revision"
+    },
+    "position": {
+      "enum": [
+        "last",
+        "mean"
+      ],
+      "title": "Position",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ldb.probe/v1alpha1",
+      "default": "ldb.probe/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed": {
+      "title": "Seed",
+      "type": "integer"
+    },
+    "test_examples": {
+      "minimum": 1,
+      "title": "Test Examples",
+      "type": "integer"
+    },
+    "train_examples": {
+      "minimum": 1,
+      "title": "Train Examples",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "model_id",
+    "backend",
+    "backend_version",
+    "labels",
+    "position",
+    "train_examples",
+    "test_examples",
+    "majority_baseline",
+    "controls",
+    "seed",
+    "layers"
+  ],
+  "title": "ProbeReport",
+  "type": "object"
+}

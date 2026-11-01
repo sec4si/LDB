@@ -22,6 +22,8 @@ attribution, and intervention evidence are kept distinct.
 - Scalar hook summaries for every run, with selective full-tensor capture as `safetensors`
   in portable RunBundles.
 - SAE dictionary loading with global and per-token feature activations.
+- Logit lens over every layer's residual stream, with a final-layer consistency check.
+- Linear probes on residual activations, reported against a shuffled-label control.
 
 **Intervene**
 
@@ -91,8 +93,9 @@ ldb search sshleifer/tiny-gpt2 \
   --output patch-search.json
 ```
 
-`ldb ablate` and `ldb attention` follow the same pattern. Offline analysis uses
-TransformerLens by default; pass `--engine transformers` for the smaller native adapter.
+`ldb ablate`, `ldb attention`, `ldb logit-lens`, and `ldb probe` follow the same pattern.
+Offline analysis uses TransformerLens by default; pass `--engine transformers` for the
+smaller native adapter.
 `ldb run` records scalar summaries for every normalized hook point and writes full
 tensors only for hooks matched by `--capture`.
 
@@ -190,6 +193,7 @@ synchronous and meant for isolated debugging requests, not normal production tra
 | Runtime compatibility | [docs/compatibility.md](docs/compatibility.md) |
 | GPU acceptance harness | [docs/gpu-validation.md](docs/gpu-validation.md) |
 | TransformerLens integration | [docs/transformer-lens.md](docs/transformer-lens.md) |
+| Logit lens and linear probes | [docs/logit-lens-and-probes.md](docs/logit-lens-and-probes.md) |
 | Patch search | [docs/patch-search.md](docs/patch-search.md) |
 | Automatic diagnosis | [docs/automatic-diagnosis.md](docs/automatic-diagnosis.md) |
 | Causal ablation | [docs/causal-ablation.md](docs/causal-ablation.md) |
