@@ -45,6 +45,14 @@ ablation and deterministic restoration passed. This does not extend verification
 to hot attachment, CUDA Graphs, distributed execution or other architectures.
 See [the run record and configuration restrictions](wsl-gpu-acceptance.md).
 
+2026-11-01: DeepSeek V4.1 Flash on 8× A800 with a vLLM 0.31.0 development build
+(`vllm.v1.worker.gpu` runner, TP8 with expert parallelism, eager, prepared attachment,
+version gate bypassed) passed fused-MoE routing traces, observe-only residual traces
+with bit-identical armed and unarmed outputs, patch rejection on observe-only hooks, and
+request context from the runner's `InputBatch`. Routing-bias patches, sequence
+parallelism, CUDA Graphs and deep_gemm mega-mHC hardware were not covered. See
+[the DeepSeek V4.1 record](deepseek-v41-gpu-validation.md).
+
 | Capability | Transformers eager | SGLang eager | vLLM eager | CUDA Graph replay |
 |---|---:|---:|---:|---:|
 | Normalized module trace | Yes | Implemented | Implemented | Experimental summaries |
@@ -78,6 +86,7 @@ The following eager decoder contracts were checked against the pinned runtime so
 | SGLang 0.5.19 | `LlamaDecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
 | SGLang 0.5.19 | `Qwen2DecoderLayer` | Deferred `(hidden_states, residual)` sum | CPU contract tests |
 | SGLang 0.5.19 | `Qwen3DecoderLayer` | Communicator-managed sum with additional residual input | CPU contracts for unsharded TP1/DP1/CP1 eager |
+| vLLM 0.31.0 dev | DeepSeek V4.1 `DeepseekV4DecoderLayer` | Multi-stream hyper-connection; observe-only mean over streams from the next layer's aux capture | GPU validated, 8× A800 TP8 eager |
 
 For these supported contracts, `block.N.residual.pre` means the logical input
 sum, and `block.N.residual.post` means the logical output sum. The first output tensor
@@ -140,8 +149,9 @@ PyTorch modules. Their rows contain only tokens routed to that expert and theref
 do not preserve the continuous batch's request-span layout. Global traces and
 interventions are supported, but request-scoped traces, patches, token selectors,
 and breakpoints fail closed on expert-output hooks. Router-logit hooks remain
-token-aligned and request-addressable. LDB does not claim visibility inside an
-opaque fused-MoE kernel.
+token-aligned and request-addressable. For fused-MoE layers, LDB hooks the router and
+exposes the selected expert IDs and weights; it does not claim visibility into the
+expert computation inside an opaque fused-MoE kernel.
 
 Pre-projection head ablation uses exact contiguous head slices. In tensor-parallel
 serving, adapters publish authoritative `tp_rank` and `tp_size` values. LDB maps the

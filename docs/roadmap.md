@@ -26,10 +26,12 @@ SGLang) whenever those features are needed.
 ## DeepSeek V4.1 residual stream
 
 V4.1 layers expose fused-MoE routing hooks and observe-only `residual.post` readings
-built from the model's own aux capture, which average the hyper-connection streams. Not
-covered yet: the individual streams, the final layer's output, interventions on the
-residual stream, sequence-parallel deployments, and GPU validation on a production
-topology.
+built from the model's own aux capture, which average the hyper-connection streams. Both
+passed GPU validation on 8× A800 with TP8 and expert parallelism, with bit-identical
+outputs while observed ([record](deepseek-v41-gpu-validation.md)). Not covered yet: the
+individual streams, the final layer's output, interventions on the residual stream,
+routing-bias patches on GPU, sequence-parallel deployments, and deep_gemm mega-mHC
+hardware.
 
 ## Training interpretability artifacts
 

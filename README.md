@@ -177,7 +177,9 @@ does not hook their residual directly. Instead, `block.N.residual.post` for laye
 `0..L-2` is read through the next layer's own aux capture, which returns the mean over the
 hyper-connection streams; arming the hook requests that capture for the call. These hooks
 are observe-only: patches are rejected. The final layer's output is not exposed, and the
-hooks are absent when sequence parallelism shards the stream. Requesting the capture
+hooks are absent when sequence parallelism shards the stream. On 8× A800 with tensor
+parallelism, arming every residual hook left greedy outputs and log-probabilities
+bit-identical ([record](docs/deepseek-v41-gpu-validation.md)). Requesting the capture
 disables the decoder's deep_gemm mega-mHC kernel for that call, so on hardware that uses
 it, observed runs may differ numerically from unobserved ones.
 
@@ -202,6 +204,7 @@ synchronous and meant for isolated debugging requests, not normal production tra
 |---|---|
 | Architecture and roadmap | [docs/architecture-v0.1.md](docs/architecture-v0.1.md) |
 | Runtime compatibility | [docs/compatibility.md](docs/compatibility.md) |
+| DeepSeek V4.1 GPU validation | [docs/deepseek-v41-gpu-validation.md](docs/deepseek-v41-gpu-validation.md) |
 | GPU acceptance harness | [docs/gpu-validation.md](docs/gpu-validation.md) |
 | TransformerLens integration | [docs/transformer-lens.md](docs/transformer-lens.md) |
 | Logit lens, tuned lens, and linear probes | [docs/logit-lens-and-probes.md](docs/logit-lens-and-probes.md) |
