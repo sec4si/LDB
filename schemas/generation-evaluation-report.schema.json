@@ -1,0 +1,895 @@
+{
+  "$defs": {
+    "ChatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    },
+    "EvidenceLevel": {
+      "enum": [
+        "observed",
+        "correlated",
+        "attributed",
+        "causally_tested",
+        "replicated"
+      ],
+      "title": "EvidenceLevel",
+      "type": "string"
+    },
+    "GenerationCase": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "attack",
+            "benign"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/GenerationInput"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/OutputRule"
+          },
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "input",
+        "rules"
+      ],
+      "title": "GenerationCase",
+      "type": "object"
+    },
+    "GenerationCaseResult": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/GenerationObservation"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "comparison_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comparison Error"
+        },
+        "group": {
+          "enum": [
+            "attack",
+            "benign"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "patched": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationObservation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "category",
+        "baseline"
+      ],
+      "title": "GenerationCaseResult",
+      "type": "object"
+    },
+    "GenerationInput": {
+      "additionalProperties": false,
+      "description": "Either raw text or fixed chat history, never an implicit chat-template guess.",
+      "properties": {
+        "messages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        }
+      },
+      "title": "GenerationInput",
+      "type": "object"
+    },
+    "GenerationObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rules": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RuleResult"
+          },
+          "title": "Rules",
+          "type": "array"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "verdict"
+      ],
+      "title": "GenerationObservation",
+      "type": "object"
+    },
+    "GenerationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "chat_template_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chat Template Sha256"
+        },
+        "finish_reason": {
+          "enum": [
+            "eos",
+            "length",
+            "unknown"
+          ],
+          "title": "Finish Reason",
+          "type": "string"
+        },
+        "generated_token_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Generated Token Ids",
+          "type": "array"
+        },
+        "generation_config": {
+          "additionalProperties": true,
+          "title": "Generation Config",
+          "type": "object"
+        },
+        "generation_config_scope": {
+          "const": "explicit_request",
+          "default": "explicit_request",
+          "title": "Generation Config Scope",
+          "type": "string"
+        },
+        "output_text": {
+          "title": "Output Text",
+          "type": "string"
+        },
+        "prompt_token_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Prompt Token Ids",
+          "type": "array"
+        },
+        "raw_content_text": {
+          "title": "Raw Content Text",
+          "type": "string"
+        },
+        "raw_output_text": {
+          "title": "Raw Output Text",
+          "type": "string"
+        },
+        "rendered_prompt": {
+          "title": "Rendered Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rendered_prompt",
+        "prompt_token_ids",
+        "generated_token_ids",
+        "output_text",
+        "raw_output_text",
+        "raw_content_text",
+        "finish_reason",
+        "generation_config"
+      ],
+      "title": "GenerationResult",
+      "type": "object"
+    },
+    "GenerationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "do_sample": {
+          "const": false,
+          "default": false,
+          "title": "Do Sample",
+          "type": "boolean"
+        },
+        "max_new_tokens": {
+          "default": 128,
+          "maximum": 8192,
+          "minimum": 1,
+          "title": "Max New Tokens",
+          "type": "integer"
+        },
+        "num_beams": {
+          "const": 1,
+          "default": 1,
+          "title": "Num Beams",
+          "type": "integer"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "title": "GenerationSettings",
+      "type": "object"
+    },
+    "GenerationSuite": {
+      "additionalProperties": false,
+      "properties": {
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/GenerationCase"
+          },
+          "minItems": 2,
+          "title": "Cases",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "generation": {
+          "$ref": "#/$defs/GenerationSettings"
+        },
+        "schema_version": {
+          "const": "ldb.generation-suite/v1alpha1",
+          "default": "ldb.generation-suite/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cases"
+      ],
+      "title": "GenerationSuite",
+      "type": "object"
+    },
+    "Intervention": {
+      "additionalProperties": false,
+      "properties": {
+        "dictionary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dictionary"
+        },
+        "expert": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expert"
+        },
+        "feature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "hook": {
+          "title": "Hook",
+          "type": "string"
+        },
+        "num_heads": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Num Heads"
+        },
+        "operation": {
+          "$ref": "#/$defs/InterventionKind"
+        },
+        "request_scoped": {
+          "default": true,
+          "title": "Request Scoped",
+          "type": "boolean"
+        },
+        "tensor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "hook",
+        "operation"
+      ],
+      "title": "Intervention",
+      "type": "object"
+    },
+    "InterventionKind": {
+      "enum": [
+        "scale",
+        "ablate",
+        "replace",
+        "add",
+        "routing_bias",
+        "head_ablate",
+        "feature_scale"
+      ],
+      "title": "InterventionKind",
+      "type": "string"
+    },
+    "NeuralPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceLevel",
+          "default": "observed"
+        },
+        "hook_schema_version": {
+          "default": "ldb.hooks/v1alpha3",
+          "title": "Hook Schema Version",
+          "type": "string"
+        },
+        "interventions": {
+          "items": {
+            "$ref": "#/$defs/Intervention"
+          },
+          "minItems": 1,
+          "title": "Interventions",
+          "type": "array"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_revision": {
+          "title": "Model Revision",
+          "type": "string"
+        },
+        "patch_id": {
+          "title": "Patch Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "ldb.patch/v1alpha1",
+          "default": "ldb.patch/v1alpha1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tokenizer_hash": {
+          "title": "Tokenizer Hash",
+          "type": "string"
+        },
+        "validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValidationSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "patch_id",
+        "description",
+        "model_id",
+        "model_revision",
+        "tokenizer_hash",
+        "adapter",
+        "interventions"
+      ],
+      "title": "NeuralPatch",
+      "type": "object"
+    },
+    "OutcomeCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "failure_rate": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Failure Rate",
+          "type": "number"
+        },
+        "inconclusive": {
+          "minimum": 0,
+          "title": "Inconclusive",
+          "type": "integer"
+        },
+        "inconclusive_rate": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Inconclusive Rate",
+          "type": "number"
+        },
+        "pass_rate": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "inconclusive",
+        "pass_rate",
+        "failure_rate",
+        "inconclusive_rate"
+      ],
+      "title": "OutcomeCounts",
+      "type": "object"
+    },
+    "OutputRule": {
+      "additionalProperties": false,
+      "description": "A literal, case-sensitive check; no semantic or safety-judge inference.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "exact",
+            "contains",
+            "not_contains"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "OutputRule",
+      "type": "object"
+    },
+    "PairedChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "fixed": {
+          "default": 0,
+          "title": "Fixed",
+          "type": "integer"
+        },
+        "regressed": {
+          "default": 0,
+          "title": "Regressed",
+          "type": "integer"
+        },
+        "unresolved": {
+          "default": 0,
+          "title": "Unresolved",
+          "type": "integer"
+        }
+      },
+      "title": "PairedChanges",
+      "type": "object"
+    },
+    "RuleResult": {
+      "additionalProperties": false,
+      "properties": {
+        "rule": {
+          "$ref": "#/$defs/OutputRule"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule",
+        "verdict"
+      ],
+      "title": "RuleResult",
+      "type": "object"
+    },
+    "ValidationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "related_generalization": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Related Generalization"
+        },
+        "target_success": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Target Success",
+          "type": "number"
+        },
+        "unrelated_regression": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unrelated Regression"
+        }
+      },
+      "required": [
+        "target_success"
+      ],
+      "title": "ValidationSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter_version": {
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "backend_version": {
+      "title": "Backend Version",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/GenerationCaseResult"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "categories": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/OutcomeCounts"
+          },
+          "type": "object"
+        },
+        "type": "object"
+      },
+      "title": "Categories",
+      "type": "object"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "device": {
+      "title": "Device",
+      "type": "string"
+    },
+    "groups": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/OutcomeCounts"
+        },
+        "type": "object"
+      },
+      "title": "Groups",
+      "type": "object"
+    },
+    "hook_schema_version": {
+      "default": "ldb.hooks/v1alpha3",
+      "title": "Hook Schema Version",
+      "type": "string"
+    },
+    "limitations": {
+      "default": [
+        "Literal output rules only; no semantic safety judge or tool execution.",
+        "One greedy generation per arm; no confidence interval or stochastic robustness claim.",
+        "Length-limited or unknown stops cannot pass; witnessed forbidden strings still fail.",
+        "Patch hooks remain active for every matching invocation throughout generation.",
+        "No model weight hash or GPU determinism guarantee; pin and archive model artifacts."
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Revision"
+    },
+    "paired_changes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PairedChanges"
+      },
+      "title": "Paired Changes",
+      "type": "object"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "patch": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NeuralPatch"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "patch_resource_sha256": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Patch Resource Sha256",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "ldb.generation-evaluation/v1alpha1",
+      "default": "ldb.generation-evaluation/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "suite": {
+      "$ref": "#/$defs/GenerationSuite"
+    },
+    "suite_sha256": {
+      "title": "Suite Sha256",
+      "type": "string"
+    },
+    "tokenizer_hash": {
+      "title": "Tokenizer Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "model_id",
+    "model_revision",
+    "tokenizer_hash",
+    "backend",
+    "backend_version",
+    "adapter_version",
+    "device",
+    "suite_sha256",
+    "suite",
+    "patch",
+    "patch_resource_sha256",
+    "groups",
+    "categories",
+    "paired_changes",
+    "cases",
+    "passed"
+  ],
+  "title": "GenerationEvaluationReport",
+  "type": "object"
+}

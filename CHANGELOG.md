@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- `ldb evaluate-generation`: native Transformers free-generation transcripts and
+  literal output rules, requiring attack and benign controls. Reports retain
+  baseline/patch outputs, token boundaries, stop reasons, incomplete/error outcomes,
+  grouped metrics, and paired fixes/regressions. Existing log-probability verification
+  remains unchanged; token-scoped patches are rejected by the new workflow.
+- Generation input/report schemas and a synthetic canary/control suite; see
+  [generation evaluation](docs/generation-evaluation.md) for semantics and limitations.
+- Reject invalid paired attribution when prompts/templates or requested generation
+  settings differ; record external patch resource hashes and detect resource drift.
+  Negative rules retain raw payload evidence while excluding the terminal EOS token.
+- Offline intervention installation rolls back on interruption, and cleanup attempts
+  all handles before reporting failures.
+
 - `ldb logit-lens --tuned-lens`: apply pretrained per-layer translators before the
   unembedding.
 - `ldb transcoder`: transcoder features on an MLP input and the normalized error of their

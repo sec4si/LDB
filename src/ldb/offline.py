@@ -57,15 +57,27 @@ def install_interventions(
                 )
 
             handles.extend(runtime.install_intervention(hook, apply) for hook in matches)
-    except Exception:
-        remove_interventions(handles)
+    except BaseException as installation_error:
+        try:
+            remove_interventions(handles)
+        except BaseException as cleanup_error:
+            raise BaseExceptionGroup(
+                "Intervention installation and rollback failed",
+                [installation_error, cleanup_error],
+            ) from None
         raise
     return handles
 
 
 def remove_interventions(handles: list[ProbeHandle]) -> None:
+    errors: list[BaseException] = []
     for handle in reversed(handles):
-        handle.remove()
+        try:
+            handle.remove()
+        except BaseException as error:
+            errors.append(error)
+    if errors:
+        raise BaseExceptionGroup("Intervention cleanup failed", errors)
 
 
 def _load_resource(intervention: Intervention, directory: Path) -> Any:

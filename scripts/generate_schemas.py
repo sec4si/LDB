@@ -12,6 +12,7 @@ from ldb.causal import AblationReport, CausalGraphReport, CausalReport
 from ldb.checkpoints import LayerCheckpoint
 from ldb.crosscoder import CrosscoderDiffReport
 from ldb.diagnosis import DiagnosisReport
+from ldb.generation_evaluation import GenerationEvaluationReport, GenerationSuite
 from ldb.lens import LogitLensReport
 from ldb.live import (
     AgentDescriptor,
@@ -52,6 +53,8 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "causal-report": CausalReport,
     "diagnosis-report": DiagnosisReport,
     "evaluation-suite": EvaluationSuite,
+    "generation-suite": GenerationSuite,
+    "generation-evaluation-report": GenerationEvaluationReport,
     "feature-report": FeatureReport,
     "logit-lens-report": LogitLensReport,
     "probe-example": ProbeExample,

@@ -84,6 +84,17 @@ continuation together and rejects a continuation that changes the prompt token
 prefix; use an explicit separator instead of scoring a different tokenization by
 accident.
 
+## Full-generation checks are a separate workflow
+
+The `success` values above measure log-probability gains against thresholds, not
+correct answers or safe behavior. A multi-token `target_text` is teacher-forced;
+it is not a free-generated response. Use
+[`ldb evaluate-generation`](generation-evaluation.md) for independent generation
+attempts with explicit output rules and benign-task controls. It writes a separate
+report and does not populate `NeuralPatch.validation` with incompatible metrics.
+Token-scoped patches are rejected there until prefill/decode position semantics
+can be specified explicitly; do not silently drop a token selector to make a patch fit.
+
 ## Heterogeneous combination search
 
 Define bounded candidates with explicit complexity costs. Candidates may use any

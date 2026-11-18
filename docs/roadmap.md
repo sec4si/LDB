@@ -33,6 +33,23 @@ individual streams, the final layer's output, interventions on the residual stre
 routing-bias patches on GPU, sequence-parallel deployments, and deep_gemm mega-mHC
 hardware.
 
+## Generation-level research evaluation
+
+Today: `ldb evaluate-generation` runs complete greedy generation attempts with the
+native Transformers adapter, records exact inputs and newly generated output, and
+applies explicit literal rules. Attack and benign controls are mandatory. An optional
+Neural Patch is checked against runtime identity, then compared with an unpatched
+baseline. Incomplete or failed attempts remain visible and cannot count as passes.
+See [generation evaluation](generation-evaluation.md).
+
+Not implemented in this workflow: semantic safety judges; actual tool execution or
+agent rollouts; dynamic multi-turn environments; randomized or interleaved arm order;
+sampling repetitions and confidence intervals; per-phase/per-step intervention control;
+stable prompt-span token selection across prefill/decode; TransformerLens or live-server
+integration; quantized/MoE production-backend acceptance. Fixed chat history is input to
+one generation, not a multi-turn evaluation. Literal-rule rates are not general safety
+or attack-success rates. Actual model and GPU acceptance remain separate from contract tests.
+
 ## Training interpretability artifacts
 
 LDB loads SAE, transcoder, tuned-lens, and crosscoder dictionaries in canonical layouts
