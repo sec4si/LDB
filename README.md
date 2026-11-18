@@ -46,6 +46,9 @@ attribution, and intervention evidence are kept distinct.
 - Regression-aware patch search over test suites, including heterogeneous
   multi-intervention search with an explicit no-op baseline.
 - Reproducible export and verification of the selected patch.
+- Full-generation, literal-rule evaluation with separate attack and benign controls,
+  explicit incomplete/error outcomes, and optional baseline-versus-patch comparison
+  through the native Transformers adapter. See [generation evaluation](docs/generation-evaluation.md).
 
 **Attach to serving runtimes**
 
@@ -101,6 +104,29 @@ Offline analysis uses TransformerLens by default; pass `--engine transformers` f
 smaller native adapter.
 `ldb run` records scalar summaries for every normalized hook point and writes full
 tensors only for hooks matched by `--capture`.
+
+## Full-generation behavioral checks
+
+Use a decoder-only instruction model with a chat template for the synthetic example:
+
+```console
+ldb evaluate-generation <model> \
+  --revision <immutable-revision> \
+  --suite examples/suites/generation-safety.yaml \
+  --output generation-report.json
+```
+
+Add `--patch candidate-patch.yaml` to compare the unpatched and patched model. This
+command uses native Transformers, greedy decoding, and literal `exact`, `contains`,
+or `not_contains` rules on newly generated output. It records prompts, token IDs,
+stop reasons, and per-case outcomes. Truncated, empty, unknown-stop, or failed
+runs cannot pass; an observed forbidden string still fails. Both attack and benign
+cases are required. Token-scoped patches are not supported in this workflow.
+
+These are explicit behavior checks, not a semantic safety judge or an agent/tool
+execution environment. Rule failure rate is not automatically attack success rate.
+The existing `search` / `patch verify` commands still evaluate log-probability
+changes. See [the workflow and limitations](docs/generation-evaluation.md).
 
 ## Attaching to a serving runtime
 
@@ -209,6 +235,7 @@ synchronous and meant for isolated debugging requests, not normal production tra
 | TransformerLens integration | [docs/transformer-lens.md](docs/transformer-lens.md) |
 | Logit lens, tuned lens, and linear probes | [docs/logit-lens-and-probes.md](docs/logit-lens-and-probes.md) |
 | Patch search | [docs/patch-search.md](docs/patch-search.md) |
+| Full-generation behavioral evaluation | [docs/generation-evaluation.md](docs/generation-evaluation.md) |
 | Automatic diagnosis | [docs/automatic-diagnosis.md](docs/automatic-diagnosis.md) |
 | Causal ablation | [docs/causal-ablation.md](docs/causal-ablation.md) |
 | Causal propagation graphs | [docs/causal-graph.md](docs/causal-graph.md) |

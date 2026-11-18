@@ -6,6 +6,12 @@ from collections.abc import Sequence
 from importlib.metadata import version
 from typing import Any, cast
 
+from ldb.generation import (
+    GenerationInput,
+    GenerationResult,
+    GenerationSettings,
+    generate_transformers,
+)
 from ldb.identity import hash_tokenizer
 from ldb.models import HookPhase, HookPoint
 from ldb.runtime import InterventionCallback, ProbeCallback, ProbeHandle
@@ -260,6 +266,13 @@ class TransformersAdapter:
                 pad_token_id=self.tokenizer.eos_token_id,
             )
         return str(self.tokenizer.decode(output[0], skip_special_tokens=True))
+
+    def generate_result(
+        self, request: GenerationInput, *, settings: GenerationSettings
+    ) -> GenerationResult:
+        """Return a generation transcript with an explicit prompt/output boundary."""
+
+        return generate_transformers(self.model, self.tokenizer, self.device, request, settings)
 
     def next_token_log_probability(self, prompt: str, target_token_id: int) -> float:
         import torch

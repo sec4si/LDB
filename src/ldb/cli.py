@@ -142,6 +142,74 @@ def runtimes() -> None:
     )
 
 
+@app.command("evaluate-generation")
+def evaluate_generation_command(
+    model: Annotated[str, typer.Argument(help="Decoder-only model ID or local directory")],
+    suite: Annotated[Path, typer.Option("--suite", exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", help="Write the full JSON report")],
+    patch: Annotated[
+        Path | None, typer.Option("--patch", exists=True, dir_okay=False)
+    ] = None,
+    revision: Annotated[str | None, typer.Option("--revision")] = None,
+    device: Annotated[str, typer.Option("--device")] = "cpu",
+) -> None:
+    """Check full greedy generations with explicit rules (native Transformers only)."""
+    from tempfile import TemporaryFile
+
+    from ldb.generation_evaluation import evaluate_generation, load_generation_suite
+
+    # Validate inputs and output before loading model weights.
+    evaluation_suite = load_generation_suite(suite)
+    neural_patch = load_patch(patch) if patch is not None else None
+    if output.exists():
+        raise typer.BadParameter(
+            "Report already exists; choose a new output path", param_hint="output"
+        )
+    if neural_patch is not None and neural_patch.model_id != model:
+        raise typer.BadParameter("Patch model ID does not match MODEL", param_hint="patch")
+    if neural_patch is not None:
+        if revision is not None and revision != neural_patch.model_revision:
+            raise typer.BadParameter("Revision does not match the patch", param_hint="revision")
+        revision = neural_patch.model_revision
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with TemporaryFile(dir=output.parent):
+            pass
+    except OSError as exc:
+        raise typer.BadParameter(
+            f"Report directory is not writable: {exc}", param_hint="output"
+        ) from exc
+    adapter = _load_offline_adapter(
+        OfflineEngine.TRANSFORMERS, model, revision=revision, device=device
+    )
+    report = evaluate_generation(
+        adapter,
+        evaluation_suite,
+        patch=neural_patch,
+        patch_directory=patch.parent if patch is not None else None,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        stream.write(report.model_dump_json(indent=2) + "\n")
+    table = Table("Group", "Arm", "Pass", "Fail", "Inconclusive", "Total")
+    for group, arms in report.groups.items():
+        for arm, counts in arms.items():
+            table.add_row(
+                group, arm, str(counts.passed), str(counts.failed),
+                str(counts.inconclusive), str(counts.total),
+            )
+    console.print(table)
+    console.print("Literal-rule evaluation only; a pass is not a general safety guarantee.")
+    invalid_pairs = sum(case.comparison_error is not None for case in report.cases)
+    if invalid_pairs:
+        console.print(
+            f"{invalid_pairs} invalid paired comparison(s); see comparison_error in the report."
+        )
+    console.print(f"Report: {output}")
+    if not report.passed:
+        raise typer.Exit(code=1)
+
+
 @app.command("structural-test")
 def structural_test(
     model: Annotated[str, typer.Argument()] = "sshleifer/tiny-gpt2",

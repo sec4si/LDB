@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "ChatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    },
+    "GenerationCase": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "unspecified",
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "group": {
+          "enum": [
+            "attack",
+            "benign"
+          ],
+          "title": "Group",
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/GenerationInput"
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/OutputRule"
+          },
+          "minItems": 1,
+          "title": "Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id",
+        "group",
+        "input",
+        "rules"
+      ],
+      "title": "GenerationCase",
+      "type": "object"
+    },
+    "GenerationInput": {
+      "additionalProperties": false,
+      "description": "Either raw text or fixed chat history, never an implicit chat-template guess.",
+      "properties": {
+        "messages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        }
+      },
+      "title": "GenerationInput",
+      "type": "object"
+    },
+    "GenerationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "do_sample": {
+          "const": false,
+          "default": false,
+          "title": "Do Sample",
+          "type": "boolean"
+        },
+        "max_new_tokens": {
+          "default": 128,
+          "maximum": 8192,
+          "minimum": 1,
+          "title": "Max New Tokens",
+          "type": "integer"
+        },
+        "num_beams": {
+          "const": 1,
+          "default": 1,
+          "title": "Num Beams",
+          "type": "integer"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "title": "GenerationSettings",
+      "type": "object"
+    },
+    "OutputRule": {
+      "additionalProperties": false,
+      "description": "A literal, case-sensitive check; no semantic or safety-judge inference.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "exact",
+            "contains",
+            "not_contains"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "OutputRule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/GenerationCase"
+      },
+      "minItems": 2,
+      "title": "Cases",
+      "type": "array"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "generation": {
+      "$ref": "#/$defs/GenerationSettings"
+    },
+    "schema_version": {
+      "const": "ldb.generation-suite/v1alpha1",
+      "default": "ldb.generation-suite/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cases"
+  ],
+  "title": "GenerationSuite",
+  "type": "object"
+}
